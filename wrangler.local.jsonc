@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "ggernaut-status-local",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2026-08-31",
+  "d1_databases": [
+    {
+      "binding": "STATUS_DB",
+      "database_name": "status-local",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "./migrations"
+    }
+  ]
+}

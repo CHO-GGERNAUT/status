@@ -1,0 +1,16 @@
+[Unit]
+Description=Send Ggernaut host status heartbeat
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=status-reporter
+Group=status-reporter
+EnvironmentFile=/etc/ggernaut-status/host.env
+ExecStart=/usr/local/libexec/ggernaut-status/status-host-reporter
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+RestrictAddressFamilies=AF_INET AF_INET6

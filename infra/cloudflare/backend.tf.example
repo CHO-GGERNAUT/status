@@ -1,0 +1,11 @@
+# Keep Terraform state outside the public repository. Configure a remote backend
+# appropriate for the account before the first production apply.
+#
+# terraform {
+#   cloud {
+#     organization = "replace-with-organization"
+#     workspaces {
+#       name = "ggernaut-status"
+#     }
+#   }
+# }

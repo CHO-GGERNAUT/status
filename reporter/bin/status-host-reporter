@@ -1,0 +1,25 @@
+#!/bin/sh
+set -eu
+
+: "${STATUS_REPORTER_URL:?STATUS_REPORTER_URL is required}"
+: "${STATUS_REPORTER_TOKEN:?STATUS_REPORTER_TOKEN is required}"
+: "${STATUS_COMPONENT:?STATUS_COMPONENT is required}"
+
+sequence=$(date +%s)
+payload=$(printf \
+  '{"sequence":%s,"observations":[{"component":"%s","status":"operational","message":"heartbeat"}]}' \
+  "$sequence" \
+  "$STATUS_COMPONENT")
+
+curl \
+  --silent \
+  --show-error \
+  --fail-with-body \
+  --max-time 10 \
+  --retry 2 \
+  --retry-delay 2 \
+  --retry-all-errors \
+  --header "Authorization: Bearer $STATUS_REPORTER_TOKEN" \
+  --header "Content-Type: application/json" \
+  --data "$payload" \
+  "$STATUS_REPORTER_URL"

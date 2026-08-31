@@ -1,0 +1,43 @@
+{
+  "name": "ggernaut-status",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "pnpm build && wrangler pages dev dist --compatibility-date=2026-08-31 --d1 STATUS_DB=00000000-0000-0000-0000-000000000000",
+    "dev:web": "vite",
+    "build": "vite build",
+    "build:functions": "wrangler pages functions build --outdir .functions-dist",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm build:functions",
+    "db:migrate:local": "wrangler d1 migrations apply status-local --local --config wrangler.local.jsonc",
+    "db:migrate:production": "wrangler d1 migrations apply status-production --remote",
+    "deploy": "wrangler pages deploy dist --project-name=ggernaut-status",
+    "token:create": "node scripts/create-reporter-token.mjs"
+  },
+  "dependencies": {
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "swr": "2.5.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260831.1",
+    "@eslint/js": "10.0.1",
+    "@types/node": "22.19.15",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "5.1.4",
+    "eslint": "10.9.1",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-react-refresh": "0.5.5",
+    "globals": "17.11.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.68.0",
+    "vite": "7.3.6",
+    "vitest": "4.1.11",
+    "wrangler": "4.127.1"
+  }
+}
