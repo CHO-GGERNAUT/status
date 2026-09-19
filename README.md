@@ -105,13 +105,14 @@ before using Terraform from another machine. Never commit Terraform state.
 
 The Pages project follows `CHO-GGERNAUT/status` on `main`. Cloudflare runs `pnpm check` and
 publishes `dist` on each push; there is no separate GitHub Actions deployment or repository API
-token. Before pushing an application change that needs a new D1 schema, apply its migration from
-a trusted workstation with Wrangler authenticated:
+token. Before pushing an application change that needs a new D1 schema, apply its migration to
+both databases from a trusted workstation with Wrangler authenticated:
 
 ```bash
+pnpm db:migrate:preview
 pnpm db:migrate:production
 ```
 
-The initial production migrations have already been applied. Pages deployment does not run D1
-migrations automatically. Terraform remains a manual infrastructure operation and is not part of
-the Pages build.
+The initial production and preview migrations have already been applied. Pages deployment does
+not run D1 migrations automatically. Terraform remains a manual infrastructure operation and is
+not part of the Pages build.

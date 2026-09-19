@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "ggernaut-status-preview-migrations",
+  "compatibility_date": "2026-08-31",
+  "d1_databases": [
+    {
+      "binding": "STATUS_DB",
+      "database_name": "status-preview",
+      "database_id": "87f23297-62ef-47df-91d7-bc04340fb197",
+      "migrations_dir": "./migrations"
+    }
+  ]
+}
