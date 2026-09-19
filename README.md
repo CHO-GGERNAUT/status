@@ -118,9 +118,6 @@ Repository secrets:
 Repository variables:
 
 - `CLOUDFLARE_ACCOUNT_ID`
-- `STATUS_PROJECT_NAME` = `ggernaut-status`
-- `STATUS_D1_DATABASE_NAME` = `status-production`
-- `STATUS_DEPLOY_ENABLED` = `true` after Cloudflare infrastructure and secrets are ready
 
 Pushes to `main` run checks, apply pending D1 migrations, and deploy through Wrangler. Terraform
 remains a manual operation from a trusted workstation with a configured remote backend; an
