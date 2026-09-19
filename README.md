@@ -88,7 +88,8 @@ installation notes are under `reporter/opnsense/` and `reporter/openwrt/`.
 ## Cloudflare infrastructure
 
 Terraform owns the two D1 databases, the Direct Upload Pages project, the production and preview
-D1 bindings, and `status.ggernaut.com`.
+D1 bindings, and the Pages custom-domain registration for `status.ggernaut.com`. The DNS record
+must point to `ggernaut-status.pages.dev` before Cloudflare can activate that domain.
 
 ```bash
 cd infra/cloudflare
@@ -98,13 +99,14 @@ terraform plan
 terraform apply
 ```
 
-Set `CLOUDFLARE_API_TOKEN` in the shell. Configure a remote Terraform backend before the first
-production apply; never commit Terraform state.
+Set `CLOUDFLARE_API_TOKEN` in the shell. The first production apply used a local, gitignored
+`infra/cloudflare/terraform.tfstate`; preserve it and migrate it to a remote backend before the
+next infrastructure change. Never commit Terraform state.
 
 D1 schema migrations and application deployments remain application release steps:
 
 ```bash
-pnpm wrangler d1 migrations apply status-production --remote
+pnpm db:migrate:production
 pnpm build
 pnpm wrangler pages deploy dist --project-name=ggernaut-status
 ```
