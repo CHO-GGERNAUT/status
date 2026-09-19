@@ -15,7 +15,6 @@
     "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm build:functions",
     "db:migrate:local": "wrangler d1 migrations apply status-local --local --config wrangler.local.jsonc",
     "db:migrate:production": "wrangler d1 migrations apply status-production --remote --config wrangler.production.jsonc",
-    "deploy": "wrangler pages deploy dist --project-name=ggernaut-status",
     "token:create": "node scripts/create-reporter-token.mjs"
   },
   "dependencies": {

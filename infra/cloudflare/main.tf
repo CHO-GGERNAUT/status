@@ -19,6 +19,28 @@ resource "cloudflare_pages_project" "status" {
   name              = var.pages_project_name
   production_branch = var.production_branch
 
+  build_config = {
+    build_command   = "pnpm check"
+    destination_dir = "dist"
+    root_dir        = ""
+  }
+
+  source = {
+    type = "github"
+    config = {
+      owner                          = "CHO-GGERNAUT"
+      repo_name                      = "status"
+      production_branch              = var.production_branch
+      production_deployments_enabled = true
+      preview_deployment_setting     = "all"
+      preview_branch_includes        = ["*"]
+      preview_branch_excludes        = []
+      path_includes                  = ["*"]
+      path_excludes                  = []
+      pr_comments_enabled            = true
+    }
+  }
+
   deployment_configs = {
     preview = {
       compatibility_date = var.compatibility_date

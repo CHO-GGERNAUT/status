@@ -87,9 +87,9 @@ installation notes are under `reporter/opnsense/` and `reporter/openwrt/`.
 
 ## Cloudflare infrastructure
 
-Terraform owns the two D1 databases, the Direct Upload Pages project, the production and preview
-D1 bindings, and the Pages custom-domain registration for `status.ggernaut.com`. The DNS record
-must point to `ggernaut-status.pages.dev` before Cloudflare can activate that domain.
+Terraform owns the two D1 databases, the Git-connected Pages project, the production and preview
+D1 bindings, and the Pages custom-domain registration for `status.ggernaut.com`. The separate DNS
+record must point to `ggernaut-status.pages.dev` before Cloudflare can activate that domain.
 
 ```bash
 cd infra/cloudflare
@@ -99,28 +99,19 @@ terraform plan
 terraform apply
 ```
 
-Set `CLOUDFLARE_API_TOKEN` in the shell. The first production apply used a local, gitignored
-`infra/cloudflare/terraform.tfstate`; preserve it and migrate it to a remote backend before the
-next infrastructure change. Never commit Terraform state.
+Set `CLOUDFLARE_API_TOKEN` in the shell when using Terraform. Production currently uses a local,
+gitignored `infra/cloudflare/terraform.tfstate`; preserve it and migrate it to a remote backend
+before using Terraform from another machine. Never commit Terraform state.
 
-D1 schema migrations and application deployments remain application release steps:
+The Pages project follows `CHO-GGERNAUT/status` on `main`. Cloudflare runs `pnpm check` and
+publishes `dist` on each push; there is no separate GitHub Actions deployment or repository API
+token. Before pushing an application change that needs a new D1 schema, apply its migration from
+a trusted workstation with Wrangler authenticated:
 
 ```bash
 pnpm db:migrate:production
-pnpm build
-pnpm wrangler pages deploy dist --project-name=ggernaut-status
 ```
 
-## GitHub Actions configuration
-
-Repository secrets:
-
-- `CLOUDFLARE_API_TOKEN`: Pages Edit and D1 Edit for application deployment
-
-Repository variables:
-
-- `CLOUDFLARE_ACCOUNT_ID`
-
-Pushes to `main` run checks, apply pending D1 migrations, and deploy through Wrangler. Terraform
-remains a manual operation from a trusted workstation with a configured remote backend; an
-application release cannot accidentally create, destroy, or replace infrastructure.
+The initial production migrations have already been applied. Pages deployment does not run D1
+migrations automatically. Terraform remains a manual infrastructure operation and is not part of
+the Pages build.
