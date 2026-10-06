@@ -1,0 +1,7 @@
+[
+  {"slug": "example-host", "group": "devices", "name": "Example host", "staleAfterSeconds": 180, "sortOrder": 10},
+  {"slug": "k3s-api", "group": "k3s", "name": "Kubernetes API", "staleAfterSeconds": 180, "sortOrder": 10},
+  {"slug": "k3s-nodes", "group": "k3s", "name": "Cluster nodes", "staleAfterSeconds": 180, "sortOrder": 20},
+  {"slug": "k3s-dns", "group": "k3s", "name": "Cluster DNS", "staleAfterSeconds": 180, "sortOrder": 30},
+  {"slug": "k3s-ingress", "group": "k3s", "name": "Ingress", "staleAfterSeconds": 180, "sortOrder": 40}
+]

@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 590" role="img" aria-labelledby="title description">
+  <title id="title">Ggernaut Status 구성도</title>
+  <desc id="description">기기와 K3S 리포터가 매분 Cloudflare Pages Functions로 상태를 전송하고, Functions가 D1에 최신 상태와 장애 기록을 저장합니다. 방문자는 Pages 화면에서 상태 API를 조회합니다.</desc>
+  <style>
+    text { font-family: -apple-system, BlinkMacSystemFont, "Noto Sans KR", "Malgun Gothic", sans-serif; }
+    .title { fill: #f5f9ff; font-size: 30px; font-weight: 700; }
+    .subtitle { fill: #afc2d5; font-size: 16px; }
+    .card { fill: #14243a; stroke: #38536d; stroke-width: 2; }
+    .card-title { fill: #f5f9ff; font-size: 22px; font-weight: 700; }
+    .card-copy { fill: #c6d5e4; font-size: 16px; }
+    .tag { fill: #54d4c5; font-size: 14px; font-weight: 700; letter-spacing: 1px; }
+    .flow { fill: none; stroke: #54d4c5; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .tip { fill: #54d4c5; }
+    .flow-label { fill: #85e4d9; font-size: 14px; font-weight: 600; }
+  </style>
+
+  <rect x="0" y="0" width="1200" height="590" rx="24" fill="#0b1728"/>
+  <text class="title" x="50" y="62">Ggernaut Status</text>
+  <text class="subtitle" x="50" y="91">기기는 상태를 보내고, 방문자는 공개 상태만 조회합니다.</text>
+
+  <rect class="card" x="50" y="145" width="300" height="145" rx="18"/>
+  <text class="tag" x="74" y="179">기기 상태</text>
+  <text class="card-title" x="74" y="215">기기 리포터</text>
+  <text class="card-copy" x="74" y="245">Ubuntu · Raspberry Pi</text>
+  <text class="card-copy" x="74" y="270">OPNsense · OpenWrt</text>
+
+  <rect class="card" x="50" y="310" width="300" height="115" rx="18"/>
+  <text class="tag" x="74" y="344">클러스터 상태</text>
+  <text class="card-title" x="74" y="380">K3S 리포터</text>
+  <text class="card-copy" x="74" y="408">API · Nodes · DNS · Ingress</text>
+
+  <rect class="card" x="448" y="190" width="302" height="190" rx="18"/>
+  <text class="tag" x="474" y="226">상태 API</text>
+  <text class="card-title" x="474" y="263">Pages Functions</text>
+  <text class="card-copy" x="474" y="303">POST /api/v1/heartbeat</text>
+  <text class="card-copy" x="474" y="334">GET /api/v1/status</text>
+
+  <rect class="card" x="850" y="190" width="300" height="190" rx="18"/>
+  <text class="tag" x="876" y="226">데이터 저장</text>
+  <text class="card-title" x="876" y="263">Cloudflare D1</text>
+  <text class="card-copy" x="876" y="303">최신 상태 · 수신 시각</text>
+  <text class="card-copy" x="876" y="334">장애 시작 · 종료 기록</text>
+
+  <rect class="card" x="448" y="452" width="302" height="105" rx="18"/>
+  <text class="tag" x="474" y="487">공개 웹사이트</text>
+  <text class="card-title" x="474" y="521">status.ggernaut.com</text>
+  <text class="card-copy" x="474" y="546">Pages 화면 · 방문자 브라우저</text>
+
+  <path class="flow" d="M 350 211 L 438 254"/>
+  <path class="flow" d="M 350 367 L 438 321"/>
+  <path class="tip" d="M 438 254 L 425 245 L 426 259 Z"/>
+  <path class="tip" d="M 438 321 L 426 315 L 427 329 Z"/>
+  <text class="flow-label" x="355" y="178">1분마다 HTTPS POST</text>
+
+  <path class="flow" d="M 750 285 L 840 285"/>
+  <path class="flow" d="M 850 323 L 760 323"/>
+  <path class="tip" d="M 840 285 L 829 278 L 829 292 Z"/>
+  <path class="tip" d="M 760 323 L 771 316 L 771 330 Z"/>
+  <text class="flow-label" x="766" y="266">상태 저장</text>
+  <text class="flow-label" x="779" y="351">상태 조회</text>
+
+  <path class="flow" d="M 581 452 L 581 390"/>
+  <path class="flow" d="M 617 380 L 617 442"/>
+  <path class="tip" d="M 581 390 L 574 401 L 588 401 Z"/>
+  <path class="tip" d="M 617 442 L 610 431 L 624 431 Z"/>
+  <text class="flow-label" x="650" y="420">1분마다 GET</text>
+</svg>

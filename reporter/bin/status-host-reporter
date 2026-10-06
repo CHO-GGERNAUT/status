@@ -1,9 +1,9 @@
 #!/bin/sh
 set -eu
-
-: "${STATUS_REPORTER_URL:?STATUS_REPORTER_URL is required}"
-: "${STATUS_REPORTER_TOKEN:?STATUS_REPORTER_TOKEN is required}"
+. "$(dirname "$0")/status-common.sh"
+status_validate
 : "${STATUS_COMPONENT:?STATUS_COMPONENT is required}"
+status_slug "$STATUS_COMPONENT" || status_fail 'Invalid component slug'
 
 sequence=$(date +%s)
 payload=$(printf \
@@ -11,15 +11,4 @@ payload=$(printf \
   "$sequence" \
   "$STATUS_COMPONENT")
 
-curl \
-  --silent \
-  --show-error \
-  --fail-with-body \
-  --max-time 10 \
-  --retry 2 \
-  --retry-delay 2 \
-  --retry-all-errors \
-  --header "Authorization: Bearer $STATUS_REPORTER_TOKEN" \
-  --header "Content-Type: application/json" \
-  --data "$payload" \
-  "$STATUS_REPORTER_URL"
+status_send "$payload"

@@ -16,7 +16,8 @@
     "db:migrate:local": "wrangler d1 migrations apply status-local --local --config wrangler.local.jsonc",
     "db:migrate:preview": "wrangler d1 migrations apply status-preview --remote --config wrangler.preview.jsonc",
     "db:migrate:production": "wrangler d1 migrations apply status-production --remote --config wrangler.production.jsonc",
-    "token:create": "node scripts/create-reporter-token.mjs"
+    "token:create": "node scripts/create-reporter-token.mjs",
+    "component:register": "node scripts/register-status-components.mjs"
   },
   "dependencies": {
     "react": "19.2.8",

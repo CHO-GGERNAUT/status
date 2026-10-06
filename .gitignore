@@ -11,3 +11,4 @@ dist/
 .terraform/
 infra/cloudflare/*.tfvars
 !infra/cloudflare/example.tfvars
+local/

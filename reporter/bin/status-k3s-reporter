@@ -1,94 +1,59 @@
 #!/bin/sh
 set -eu
-
-: "${STATUS_REPORTER_URL:?STATUS_REPORTER_URL is required}"
-: "${STATUS_REPORTER_TOKEN:?STATUS_REPORTER_TOKEN is required}"
+. "$(dirname "$0")/status-common.sh"
+status_validate
 
 STATUS_K3S_BIN=${STATUS_K3S_BIN:-/usr/local/bin/k3s}
+STATUS_K3S_KUBECONFIG=${STATUS_K3S_KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}
 STATUS_K3S_DNS_NAMESPACE=${STATUS_K3S_DNS_NAMESPACE:-kube-system}
 STATUS_K3S_DNS_WORKLOAD=${STATUS_K3S_DNS_WORKLOAD:-coredns}
 STATUS_K3S_INGRESS_NAMESPACE=${STATUS_K3S_INGRESS_NAMESPACE:-platform-system}
 STATUS_K3S_INGRESS_WORKLOAD=${STATUS_K3S_INGRESS_WORKLOAD:-traefik}
 
-sequence=$(date +%s)
+kc() {
+  "$STATUS_K3S_BIN" kubectl --kubeconfig "$STATUS_K3S_KUBECONFIG" --request-timeout=5s "$@"
+}
+
+# Independently observe each component, even when /readyz fails. Use desired
+# spec.replicas and an explicit delimiter: a missing readyReplicas means zero.
+workload() {
+  counts=$(kc --namespace "$1" get deployment "$2" \
+    -o 'jsonpath={.status.readyReplicas}{"|"}{.spec.replicas}' 2>/dev/null) || counts='0|0'
+  ready=${counts%%|*}
+  desired=${counts#*|}
+  ready=${ready:-0}
+  desired=${desired:-0}
+  case "$ready:$desired" in *[!0-9:]*) ready=0; desired=0 ;; esac
+  result=outage
+  if [ "$desired" -gt 0 ] && [ "$ready" -ge "$desired" ]; then
+    result=operational
+  elif [ "$ready" -gt 0 ]; then
+    result=degraded
+  fi
+  printf '"status":"%s","message":"%s/%s replicas ready"' "$result" "$ready" "$desired"
+}
 
 api_status=outage
-api_message="Kubernetes API not ready"
-nodes_status=outage
-nodes_message="Node readiness unavailable"
-dns_status=outage
-dns_message="CoreDNS readiness unavailable"
-ingress_status=outage
-ingress_message="Traefik readiness unavailable"
-
-if "$STATUS_K3S_BIN" kubectl get --raw=/readyz >/dev/null 2>&1; then
+if kc get --raw=/readyz >/dev/null 2>&1; then
   api_status=operational
-  api_message=ready
-
-  node_states=$(
-    "$STATUS_K3S_BIN" kubectl get nodes \
-      -o jsonpath='{range .items[*]}{range .status.conditions[?(@.type=="Ready")]}{.status}{"\n"}{end}{end}' \
-      2>/dev/null || true
-  )
-  node_total=$(printf '%s\n' "$node_states" | awk 'NF { count += 1 } END { print count + 0 }')
-  node_ready=$(printf '%s\n' "$node_states" | awk '$1 == "True" { count += 1 } END { print count + 0 }')
-  nodes_message="$node_ready/$node_total nodes ready"
-  if [ "$node_total" -gt 0 ] && [ "$node_ready" -eq "$node_total" ]; then
-    nodes_status=operational
-  elif [ "$node_ready" -gt 0 ]; then
-    nodes_status=degraded
-  fi
-
-  dns_counts=$(
-    "$STATUS_K3S_BIN" kubectl \
-      --namespace "$STATUS_K3S_DNS_NAMESPACE" \
-      get deployment "$STATUS_K3S_DNS_WORKLOAD" \
-      -o jsonpath='{.status.readyReplicas} {.status.replicas}' \
-      2>/dev/null || true
-  )
-  dns_ready=$(printf '%s' "$dns_counts" | awk '{ print $1 + 0 }')
-  dns_desired=$(printf '%s' "$dns_counts" | awk '{ print $2 + 0 }')
-  dns_message="$dns_ready/$dns_desired replicas ready"
-  if [ "$dns_desired" -gt 0 ] && [ "$dns_ready" -eq "$dns_desired" ]; then
-    dns_status=operational
-  elif [ "$dns_ready" -gt 0 ]; then
-    dns_status=degraded
-  fi
-
-  ingress_counts=$(
-    "$STATUS_K3S_BIN" kubectl \
-      --namespace "$STATUS_K3S_INGRESS_NAMESPACE" \
-      get deployment "$STATUS_K3S_INGRESS_WORKLOAD" \
-      -o jsonpath='{.status.readyReplicas} {.status.replicas}' \
-      2>/dev/null || true
-  )
-  ingress_ready=$(printf '%s' "$ingress_counts" | awk '{ print $1 + 0 }')
-  ingress_desired=$(printf '%s' "$ingress_counts" | awk '{ print $2 + 0 }')
-  ingress_message="$ingress_ready/$ingress_desired replicas ready"
-  if [ "$ingress_desired" -gt 0 ] && [ "$ingress_ready" -eq "$ingress_desired" ]; then
-    ingress_status=operational
-  elif [ "$ingress_ready" -gt 0 ]; then
-    ingress_status=degraded
-  fi
 fi
 
-payload=$(printf \
-  '{"sequence":%s,"observations":[{"component":"k3s-api","status":"%s","message":"%s"},{"component":"k3s-nodes","status":"%s","message":"%s"},{"component":"k3s-dns","status":"%s","message":"%s"},{"component":"k3s-ingress","status":"%s","message":"%s"}]}' \
-  "$sequence" \
-  "$api_status" "$api_message" \
-  "$nodes_status" "$nodes_message" \
-  "$dns_status" "$dns_message" \
-  "$ingress_status" "$ingress_message")
+node_states=$(kc get nodes \
+  -o 'jsonpath={range .items[*]}{.metadata.name}{"|"}{range .status.conditions[?(@.type=="Ready")]}{.status}{end}{"\n"}{end}' \
+  2>/dev/null) || node_states=''
+node_total=$(printf '%s\n' "$node_states" | awk 'NF { count++ } END { print count + 0 }')
+node_ready=$(printf '%s\n' "$node_states" | awk -F '|' '$2 == "True" { count++ } END { print count + 0 }')
+nodes_status=outage
+if [ "$node_total" -gt 0 ] && [ "$node_ready" -eq "$node_total" ]; then
+  nodes_status=operational
+elif [ "$node_ready" -gt 0 ]; then
+  nodes_status=degraded
+fi
 
-curl \
-  --silent \
-  --show-error \
-  --fail-with-body \
-  --max-time 10 \
-  --retry 2 \
-  --retry-delay 2 \
-  --retry-all-errors \
-  --header "Authorization: Bearer $STATUS_REPORTER_TOKEN" \
-  --header "Content-Type: application/json" \
-  --data "$payload" \
-  "$STATUS_REPORTER_URL"
+dns=$(workload "$STATUS_K3S_DNS_NAMESPACE" "$STATUS_K3S_DNS_WORKLOAD")
+ingress=$(workload "$STATUS_K3S_INGRESS_NAMESPACE" "$STATUS_K3S_INGRESS_WORKLOAD")
+sequence=$(date +%s)
+payload=$(printf \
+  '{"sequence":%s,"observations":[{"component":"k3s-api","status":"%s","message":"API readiness"},{"component":"k3s-nodes","status":"%s","message":"%s/%s nodes ready"},{"component":"k3s-dns",%s},{"component":"k3s-ingress",%s}]}' \
+  "$sequence" "$api_status" "$nodes_status" "$node_ready" "$node_total" "$dns" "$ingress")
+status_send "$payload"

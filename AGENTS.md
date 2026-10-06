@@ -12,6 +12,8 @@ Public status page deployed to Cloudflare Pages with Pages Functions and D1.
 - `src/web`: React status dashboard.
 - `infra/cloudflare`: long-lived Cloudflare resources managed by Terraform.
 - `reporter`: portable host and K3S heartbeat clients.
+- `scripts`: component-registration SQL and scoped reporter-token file generation; no automatic D1 writes.
+- `homelab` installs a pinned checkout of this repository. Keep reporter source and behavior tests here.
 
 ## Invariants
 
