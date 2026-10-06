@@ -76,7 +76,7 @@ SQL을 적용하면 INSERT 충돌이 납니다. 토큰 교체 절차로 사용�
 토큰은 Ansible Vault 또는 라우터의 root 전용 설정에만 보관하고 운영·미리보기 간에 재사용하지 않습니다.
 `--output-dir`을 생략하면 기존처럼 토큰과 SQL을 터미널에 표시합니다. 전체 출력을 SQL로 실행하면 안 됩니다.
 
-Linux 설치는 [homelab 설정 안내](https://github.com/CHO-GGERNAUT/homelab/blob/main/docs/status-reporters.md)를 따릅니다.
+Linux 설치는 [homelab 설정 안내](reporter/ansible.md)를 따릅니다.
 관리 PC에 status를 원하는 커밋으로 준비하고 `status_reporter_source_dir`와
 `status_reporter_revision`에 경로와 40자리 커밋 SHA를 지정합니다.
 Ansible은 리포터 파일이 수정되지 않았고 해당 커밋과 일치하는지 확인한 다음 설치합니다.

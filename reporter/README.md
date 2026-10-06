@@ -28,7 +28,7 @@ STATUS_COMPONENT=ubuntu-main-server
 ```
 
 Each component should have one writer. Map to enabled, registered slugs in your private inventory.
-See the [homelab deployment guide](https://github.com/CHO-GGERNAUT/homelab/blob/main/docs/status-reporters.md).
+See the [homelab deployment guide](ansible.md).
 Devices need working DNS, CA trust, outbound TCP 443, an accurate clock and curl >= 7.55.0.
 Credentials go to curl via stdin, not process arguments. HTTPS redirects are not followed;
 only HTTP 202 counts as success. HTTP bodies and tokens are not logged.
