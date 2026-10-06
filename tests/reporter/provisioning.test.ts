@@ -56,6 +56,16 @@ afterEach(async () => {
 });
 
 describe("admin API provisioning CLI", () => {
+  it("adds a device with its name using a single POST and saves its installation token", async () => {
+    const output = join(directory, "device");
+    const result = await cli("create-reporter-token.mjs", ["test-host", "--name", "Test host", "--output-dir", output]);
+    expect(result.status, result.stderr).toBe(0);
+    expect(calls).toEqual([{ url: "/api/v1/admin/reporters", method: "POST", authorization: "Bearer " + adminToken,
+      body: { id: "test-host", name: "Test host" } }]);
+    expect(readFileSync(join(output, "token.env"), "utf8")).toBe("STATUS_REPORTER_TOKEN=" + reporterToken + "\n");
+    expect(result.stdout + result.stderr).not.toContain(reporterToken);
+  });
+
   it("registers through the API and writes only a protected token file without leaking credentials", async () => {
     const output = join(directory, "private", "host");
     const result = await cli("create-reporter-token.mjs", ["test-host", "nas", "--output-dir", output]);
@@ -121,9 +131,10 @@ describe("admin API provisioning CLI", () => {
   });
 
   it.each([
-    ["bad'id", "nas"], ["test-host", "bad'component"], ["test-host"],
+    ["bad'id", "nas"], ["test-host", "bad'component"], [],
     ["test-host", "nas", "nas"], ["test-host", "nas", "--unknown"],
     ["--rotate", "test-host", "nas"],
+    ["--rotate", "test-host", "--name", "Unexpected"], ["test-host", "--name", " "],
   ])("rejects malformed arguments before sending any API request: %j", async (...args) => {
     const result = await cli("create-reporter-token.mjs", [...args, "--output-dir", join(directory, "invalid")]);
     expect(result.status).not.toBe(0);

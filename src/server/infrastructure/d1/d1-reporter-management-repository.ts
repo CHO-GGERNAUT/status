@@ -1,11 +1,10 @@
 import type {
   ComponentConfiguration,
   ReporterConfiguration,
-  ReporterCreationRequest,
   ReporterUpdateRequest,
 } from "../../../contracts/admin-api";
 import { StatusApplicationError } from "../../application/status/application-error";
-import type { ReporterManagementRepository } from "../../domain/status/reporter-management";
+import type { ReporterManagementRepository, ReporterRegistration } from "../../domain/status/reporter-management";
 
 export class D1ReporterManagementRepository implements ReporterManagementRepository {
   constructor(private readonly database: D1Database) {}
@@ -22,17 +21,22 @@ export class D1ReporterManagementRepository implements ReporterManagementReposit
       item.enabled === undefined ? null : Number(item.enabled))));
   }
 
-  async createReporter(reporter: ReporterCreationRequest, tokenHash: string, now: number) {
+  async createReporter(reporter: ReporterRegistration, tokenHash: string, now: number) {
     if (await this.getReporter(reporter.id)) throw new StatusApplicationError("conflict", "Reporter already exists; use update or token rotation");
-    await this.validateComponents(reporter.components);
+    await this.validateComponents(reporter.components, reporter.deviceComponent !== undefined);
     try {
       await this.database.batch([
+        ...(reporter.deviceComponent === undefined ? [] : [this.database.prepare(`
+          INSERT INTO components (slug, group_key, display_name, monitoring_started_at)
+          VALUES (?, ?, ?, ?) ON CONFLICT(slug) DO NOTHING
+        `).bind(reporter.deviceComponent.slug, reporter.deviceComponent.group, reporter.deviceComponent.name, now)]),
         this.database.prepare("INSERT INTO reporters (id, display_name, token_hash, created_at) VALUES (?, ?, ?, ?)")
           .bind(reporter.id, reporter.name ?? reporter.id, tokenHash, now),
         ...this.grants(reporter.id, reporter.components),
       ]);
     } catch (error) {
       if (await this.getReporter(reporter.id)) throw new StatusApplicationError("conflict", "Reporter already exists; use update or token rotation");
+      await this.validateComponents(reporter.components, reporter.deviceComponent !== undefined);
       throw error;
     }
   }
@@ -77,10 +81,12 @@ export class D1ReporterManagementRepository implements ReporterManagementReposit
     `).bind(id, slug));
   }
 
-  private async validateComponents(slugs: string[]) {
-    const result = await this.database.prepare(`SELECT slug FROM components WHERE enabled = 1 AND slug IN (${slugs.map(() => "?").join(", ")})`)
-      .bind(...slugs).all<{ slug: string }>();
-    if (result.results.length !== slugs.length) throw new StatusApplicationError("invalid_input", "Every component must be registered and enabled");
+  private async validateComponents(slugs: string[], allowMissing = false) {
+    const result = await this.database.prepare(`SELECT slug, enabled FROM components WHERE slug IN (${slugs.map(() => "?").join(", ")})`)
+      .bind(...slugs).all<{ slug: string; enabled: number }>();
+    if ((!allowMissing && result.results.length !== slugs.length) || result.results.some((row) => row.enabled !== 1)) {
+      throw new StatusApplicationError("invalid_input", "Every component must be registered and enabled");
+    }
   }
 
   private async requireReporter(id: string) {

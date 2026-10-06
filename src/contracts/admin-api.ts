@@ -20,7 +20,7 @@ export interface ReporterConfiguration {
 export interface ReporterCreationRequest {
   id: string;
   name?: string;
-  components: string[];
+  components?: string[];
 }
 
 export interface ReporterUpdateRequest {

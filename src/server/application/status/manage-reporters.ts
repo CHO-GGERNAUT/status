@@ -50,10 +50,16 @@ export async function createReporter(
   const value = object(input, ["id", "name", "components"]);
   identifier(value.id);
   if (value.name !== undefined) displayName(value.name);
-  componentSlugs(value.components);
+  if (value.components !== undefined) componentSlugs(value.components);
   const reporter = value as unknown as ReporterCreationRequest;
   const issued = await tokens.issue(reporter.id);
-  await repository.createReporter(reporter, issued.hash, now);
+  await repository.createReporter({
+    ...reporter,
+    components: reporter.components ?? [reporter.id],
+    ...(reporter.components === undefined ? {
+      deviceComponent: { slug: reporter.id, group: "devices", name: reporter.name ?? reporter.id },
+    } : {}),
+  }, issued.hash, now);
   return { reporterId: reporter.id, token: issued.token };
 }
 

@@ -48,18 +48,31 @@ URL과 프로젝트 이름은 본인 것으로 바꿉니다. 관리 설정은 Gi
 
 ## Reporter 등록
 
-`local/components.json`에 감시할 항목을 작성합니다.
+관리 토큰으로 장비 추가 API를 호출하면 장비 토큰이 반환됩니다.
 
-```json
-[{ "slug": "nas", "group": "devices", "name": "NAS" }]
+```http
+POST /api/v1/admin/reporters
+Authorization: Bearer <admin-token>
+Content-Type: application/json
+
+{ "id": "nas", "name": "NAS" }
 ```
+
+응답: `{ "reporterId": "nas", "token": "<device-token>" }`.
+CLI로 호출하면 토큰을 파일에 저장합니다.
 
 ```bash
-pnpm component:register local/components.json
-pnpm token:create nas-reporter nas --output-dir local/nas
+pnpm token:create nas --name NAS --output-dir local/nas
 ```
 
-발급된 `local/nas/token.env`의 토큰으로 장비에 Reporter를 설치합니다.
+Reporter를 설치할 장비의 ENV에 응답 토큰과 장비 ID를 설정합니다.
+
+```dotenv
+STATUS_REPORTER_URL=https://status.example.com/api/v1/heartbeat
+STATUS_REPORTER_TOKEN=<device-token>
+STATUS_COMPONENT=nas
+```
+
 설치: [Linux](reporter/README.md#linux-debianubuntu-systemd) · [OPNsense](reporter/opnsense/README.md) · [OpenWrt](reporter/openwrt/README.md)
 
 ## Reporter 관리
@@ -67,8 +80,8 @@ pnpm token:create nas-reporter nas --output-dir local/nas
 `local/update.json`에 변경할 값을 작성합니다. 예: `{ "enabled": false }`.
 
 ```bash
-pnpm reporter:update nas-reporter local/update.json
-pnpm token:rotate nas-reporter --output-dir local/nas-rotated
+pnpm reporter:update nas local/update.json
+pnpm token:rotate nas --output-dir local/nas-rotated
 ```
 
 재발급하면 이전 토큰은 즉시 폐기됩니다. 새 토큰을 장비에도 반영합니다.

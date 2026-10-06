@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { handleAdminRequest } from "../../src/server/interface/http/admin-handler";
 import { handleHeartbeatRequest } from "../../src/server/interface/http/heartbeat-handler";
 import { recordHeartbeat } from "../../src/server/application/status/record-heartbeat";
+import { createReporter } from "../../src/server/application/status/manage-reporters";
 import { D1ReporterAuthenticator } from "../../src/server/infrastructure/auth/d1-reporter-authenticator";
 import { D1ReporterManagementRepository } from "../../src/server/infrastructure/d1/d1-reporter-management-repository";
 import { D1StatusRepository } from "../../src/server/infrastructure/d1/d1-status-repository";
@@ -61,6 +62,54 @@ describe("secret-protected reporter administration", () => {
     expect((await heartbeat(adminToken)).status).toBe(401);
     const managementAttempt = await admin("components", [{ slug: "hack", group: "devices", name: "Hack" }], "", token);
     expect(managementAttempt.status).toBe(401);
+  });
+
+  it("registers devices and returns independent usable tokens in one POST each without prior component setup", async () => {
+    const tokens: string[] = [];
+    for (const device of [{ id: "nas", name: "NAS" }, { id: "router" }]) {
+      const response = await admin("create-reporter", device);
+      expect(response.status).toBe(201);
+      expect(response.headers.get("Cache-Control")).toBe("no-store");
+      const result = await response.json() as { reporterId: string; token: string };
+      expect(result.reporterId).toBe(device.id);
+      expect(result.token).toMatch(new RegExp(`^${device.id}\\.[A-Za-z0-9_-]{43}$`));
+      tokens.push(result.token);
+      expect(await new D1ReporterManagementRepository(fixture.database).getReporter(device.id))
+        .toEqual({ id: device.id, name: device.name ?? device.id, enabled: true, components: [device.id] });
+      expect(fixture.sqlite.prepare("SELECT group_key, display_name, enabled, stale_after_seconds FROM components WHERE slug = ?").get(device.id))
+        .toMatchObject({ group_key: "devices", display_name: device.name ?? device.id, enabled: 1, stale_after_seconds: 180 });
+      expect((await heartbeat(result.token, device.id)).status).toBe(202);
+    }
+    expect(tokens[0]).not.toBe(tokens[1]);
+    expect((await heartbeat(tokens[0], "router", 2)).status).toBe(401);
+    expect((await heartbeat(tokens[1], "nas", 2)).status).toBe(401);
+    expect((await admin("create-reporter", { id: "nas", name: "Duplicate" })).status).toBe(409);
+    expect((await heartbeat(tokens[0], "nas", 2)).status).toBe(202);
+    expect(fixture.sqlite.prepare("SELECT display_name FROM components WHERE slug = 'nas'").get()?.display_name).toBe("NAS");
+  });
+
+  it("reuses existing device components without resetting metadata/history or enabling disabled devices", async () => {
+    const token = await setupReporter();
+    await heartbeat(token);
+    fixture.sqlite.exec("INSERT INTO incidents (component_id, started_at, cause) VALUES (1, 100, 'reported'); UPDATE components SET enabled = 0 WHERE slug = 'other';");
+    const components = fixture.sqlite.prepare("SELECT * FROM components").all();
+    const states = fixture.sqlite.prepare("SELECT * FROM current_states").all();
+    const history = fixture.sqlite.prepare("SELECT * FROM incidents").all();
+    expect((await admin("create-reporter", { id: "nas", name: "NAS reporter" })).status).toBe(201);
+    expect((await admin("create-reporter", { id: "other", name: "Disabled device" })).status).toBe(400);
+    expect(fixture.sqlite.prepare("SELECT * FROM components").all()).toEqual(components);
+    expect(fixture.sqlite.prepare("SELECT * FROM current_states").all()).toEqual(states);
+    expect(fixture.sqlite.prepare("SELECT * FROM incidents").all()).toEqual(history);
+    expect(await new D1ReporterManagementRepository(fixture.database).getReporter("other")).toBeNull();
+  });
+
+  it("rolls back the new device, reporter and permissions together when registration fails", async () => {
+    fixture.sqlite.exec("CREATE TRIGGER block_device BEFORE INSERT ON reporter_components BEGIN SELECT RAISE(ABORT, 'test write failure'); END;");
+    await expect(createReporter({ id: "new-device", name: "New device" }, new D1ReporterManagementRepository(fixture.database),
+      { issue: async () => ({ token: "unused-token", hash: "hash" }) }, 100)).rejects.toThrow("test write failure");
+    for (const table of ["components", "reporters", "reporter_components"]) {
+      expect(fixture.sqlite.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get()?.count).toBe(0);
+    }
   });
 
   it("preserves current states, history, component IDs and disabled state when configuring existing components", async () => {

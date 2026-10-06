@@ -5,9 +5,14 @@ import type {
   ReporterUpdateRequest,
 } from "../../../contracts/admin-api";
 
+export interface ReporterRegistration extends ReporterCreationRequest {
+  components: string[];
+  deviceComponent?: ComponentConfiguration;
+}
+
 export interface ReporterManagementRepository {
   configureComponents(components: ComponentConfiguration[], now: number): Promise<void>;
-  createReporter(reporter: ReporterCreationRequest, tokenHash: string, now: number): Promise<void>;
+  createReporter(reporter: ReporterRegistration, tokenHash: string, now: number): Promise<void>;
   getReporter(id: string): Promise<ReporterConfiguration | null>;
   updateReporter(id: string, patch: ReporterUpdateRequest): Promise<void>;
   rotateReporterToken(id: string, tokenHash: string): Promise<void>;

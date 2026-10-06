@@ -8,10 +8,14 @@ means this host can run the script and reach Cloudflare, not that every local ap
 
 Configure the server-only `STATUS_ADMIN_TOKEN` Pages secret and the private management PC's
 `local/admin.env` as described in the [status README](../README.md).
-From this checkout, register components through the management API with
-`pnpm component:register local/components.json`, then issue one token per host with
-`pnpm token:create <reporter-id> <component-slug> --output-dir local/<reporter-id>`.
-For the one selected K3S server use a separate token with all four slugs:
+Add each host with one admin-authenticated `POST /api/v1/admin/reporters` containing
+`{ "id": "nas", "name": "NAS" }`. The API registers the device and returns its individual token.
+The CLI makes the same call: `pnpm token:create nas --name NAS --output-dir local/nas`.
+Use the returned token and `STATUS_COMPONENT=nas` when installing this host's reporter.
+
+For a reporter covering existing components, pass their slugs explicitly; register those
+components first with `pnpm component:register local/components.json`.
+For the one selected K3S server use a separate token with all four registered slugs:
 `pnpm token:create k3s-main k3s-api k3s-nodes k3s-dns k3s-ingress --output-dir local/k3s-main`.
 The API registers the hash/permissions in D1; the CLI saves only `token.env` (0600) in a new
 directory (0700). No SQL or plaintext token is printed. Install its value into the root-only reporter environment file.
@@ -26,7 +30,7 @@ Required environment:
 ```dotenv
 STATUS_REPORTER_URL=https://status.example.com/api/v1/heartbeat
 STATUS_REPORTER_TOKEN=<registered-reporter-id.secret>
-STATUS_COMPONENT=ubuntu-main-server
+STATUS_COMPONENT=nas
 ```
 
 Each component should have one writer. Configure enabled, registered slugs in the reporter environment file.
