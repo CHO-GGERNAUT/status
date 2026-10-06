@@ -6,18 +6,20 @@ means this host can run the script and reach Cloudflare, not that every local ap
 
 ## Token and destination
 
-From this status checkout, register components from a private JSON file with
-`pnpm --silent component:register local/components.json`, apply the generated SQL to D1,
-then generate one token per host with
+Configure the server-only `STATUS_ADMIN_TOKEN` Pages secret and the private management PC's
+`local/admin.env` as described in the [status README](../README.md).
+From this checkout, register components through the management API with
+`pnpm component:register local/components.json`, then issue one token per host with
 `pnpm token:create <reporter-id> <component-slug> --output-dir local/<reporter-id>`.
 For the one selected K3S server use a separate token with all four slugs:
-`pnpm token:create k3s-main k3s-api k3s-nodes k3s-dns k3s-ingress`.
-Apply the generated register.sql to the correct D1 database before installing the token.env
-value into private homelab host_vars. For interactive mode without --output-dir, apply only the
-printed SQL, not the whole terminal output (which includes the secret and labels).
+`pnpm token:create k3s-main k3s-api k3s-nodes k3s-dns k3s-ingress --output-dir local/k3s-main`.
+The API registers the hash/permissions in D1; the CLI saves only `token.env` (0600) in a new
+directory (0700). No SQL or plaintext token is printed. Install its value into private homelab host_vars.
 Keep credentials in private `local/` configuration (gitignored) or an encrypted inventory.
-Never reuse production tokens in preview. Re-running token creation for an existing ID does not
-rotate the stored token; its INSERT must not be blindly repeated.
+Never put the admin Secret on a reporter or reuse production tokens in preview.
+Existing IDs return 409. Explicitly rotate with `pnpm token:rotate <id> --output-dir local/<new-directory>`;
+this revokes the previous token immediately. Update name/permissions/enabled state with
+`pnpm reporter:update <id> <update.json>`; ordinary updates preserve the token.
 
 Required environment:
 
@@ -60,7 +62,7 @@ systemd reads the root-only EnvironmentFile before dropping to the `status-repor
 The oneshot service can be inactive after a successful run; inspect its exit status/journal and
 the timer rather than expecting a long-running service process. Do not start a second copy
 manually at the same second as the timer. Removing a host from inventory does not uninstall an
-already active reporter: explicitly disable its timer and revoke its D1 token when retiring it.
+already active reporter: explicitly disable its timer and disable it through the admin API when retiring it.
 
 ## K3S server only
 

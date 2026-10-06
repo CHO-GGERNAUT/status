@@ -22,19 +22,18 @@
 그 커밋으로 소스와 revision을 함께 설정하며, 미커밋 리포터는 설치 대상으로 사용하지 않는다.
 리포터는 노드 운영 도구이며 `make status-reporters NODE=<호스트 이름>`으로 한 대씩 설치한다.
 
-## 1. 토큰 등록 (Cloudflare 변경은 명시적으로 실행)
+## 1. 관리 API를 통한 토큰 등록
 
 먼저 [status의 감시 항목 예제](components.example.json)를 참고하여 Git 제외 `local/status/components.json`을
 직접 작성한다. 예제는 자동 복사/적용하지 않으며 실제 목록은 local에만 둔다.
-status checkout의 범용 CLI로 감시 항목을 등록한 뒤 장비마다 별도 토큰을 생성한다.
+먼저 [status README](../README.md)에 따라 관리 Secret을 Cloudflare Pages에 설정하고
+관리 PC의 `status/local/admin.env`에 보관한다. 이 Secret은 Reporter 장비에는 전달하지 않는다.
+CLI가 관리 API를 통해 감시 항목을 등록하고 장비별 토큰을 발급·등록한다.
 
 ```sh
-# status checkout에서 실행. 첫 명령은 SQL 생성만 수행한다.
+# status checkout에서 실행. 즉시 관리 API를 호출하여 운영 D1에 등록한다.
 install -d -m 0700 local
-pnpm --silent component:register /absolute/path/to/homelab/local/status/components.json > local/components.sql
-# 성공 여부와 SQL을 확인한 뒤 운영 D1에 명시적으로 적용
-pnpm exec wrangler d1 execute status-production --remote \
-  --config wrangler.production.jsonc --file local/components.sql
+pnpm component:register /absolute/path/to/homelab/local/status/components.json
 ```
 
 ```sh
@@ -42,25 +41,23 @@ pnpm token:create ubuntu-main ubuntu-main-server --output-dir local/ubuntu-main
 pnpm token:create k3s-main k3s-api k3s-nodes k3s-dns k3s-ingress --output-dir local/k3s-main
 ```
 
-첫 명령은 호스트 전용, 두 번째는 클러스터 관측용이다. 각 디렉터리의 `token.env`는 원문,
-`register.sql`은 해시/권한만 담고 있다. 디렉터리는 0700, 파일은 0600이며 기존 경로는 덮어쓰지 않는다.
-생성된 SQL을 D1 `status-production`에 각각 적용한다:
+첫 명령은 호스트 전용, 두 번째는 클러스터 관측용이다. API가 해시/권한을 D1에 저장하고
+CLI는 각 디렉터리에 `token.env`만 저장한다. 디렉터리는 0700, 파일은 0600이며 기존 경로는 덮어쓰지 않는다.
+Reporter 설정 변경과 재발급은 각각 다음 명령을 사용한다:
 
 ```sh
-pnpm exec wrangler d1 execute status-production --remote \
-  --config wrangler.production.jsonc --file local/ubuntu-main/register.sql
-pnpm exec wrangler d1 execute status-production --remote \
-  --config wrangler.production.jsonc --file local/k3s-main/register.sql
+pnpm reporter:update ubuntu-main local/update.json
+pnpm token:rotate ubuntu-main --output-dir local/ubuntu-main-rotated
 ```
 
-이는 운영 DB 쓰기다. 올바른 Cloudflare 계정/DB를 확인하고 한 번만 적용한다.
-기존 reporter ID는 INSERT 충돌이 나므로 토큰 교체는 별도 절차다.
+이는 운영 DB 쓰기다. 관리 PC의 `STATUS_ADMIN_URL`이 올바른 환경인지 확인한다.
+같은 Reporter ID를 생성하면 409다. 재발급은 이전 토큰을 즉시 폐기하므로 새 토큰을 장비에도 반영한다.
 운영 토큰을 preview에 재사용하지 않는다. 스키마/Cloudflare 리소스는 재생성하지 않는다.
 
 기존 DB에 감시 항목이 이미 등록돼 있으면 재등록할 필요가 없다. 호스트의 component는 local 설정으로 지정한다.
 status의 K3S 검사기는 `k3s-api`, `k3s-nodes`, `k3s-dns`, `k3s-ingress`를 보고하므로
 사용할 경우 그 네 항목을 먼저 등록한다. 기존 D1에 이미 있는 항목/토큰은 그대로 쓸 수 있다.
-status의 기존 DB 마이그레이션과 등록된 항목은 이번 소스 위치 변경으로 수정하지 않는다.
+기존 토큰은 그대로 쓸 수 있으며 등록 API를 쓰기 위해 추가 DB 마이그레이션은 필요 없다.
 
 ## 2. 명시적으로 대상 선택
 

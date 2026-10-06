@@ -2,6 +2,16 @@
 
 홈랩 기기와 K3S의 가동 상태를 공개하는 페이지입니다. 화면은 Cloudflare Pages, 상태 API는 Pages Functions, 상태 데이터는 D1을 사용합니다.
 
+| 구성 | 기술 스택 |
+| --- | --- |
+| 웹 화면 | TypeScript, React, Vite, SWR |
+| API | TypeScript, Cloudflare Pages Functions (Workers 런타임) |
+| DB | Cloudflare D1 (SQLite 기반) |
+| 장비 Reporter | POSIX Shell, curl, systemd/cron |
+| 관리 CLI / 인프라 | Node.js / Terraform, Wrangler |
+
+API는 Rust/Axum 서버가 아니라 Cloudflare에서 실행하는 TypeScript 함수입니다.
+
 - 웹사이트: [https://status.ggernaut.com](https://status.ggernaut.com)
 - 공개 저장소: [CHO-GGERNAUT/status](https://github.com/CHO-GGERNAUT/status)
 
@@ -22,7 +32,7 @@
 
 ## 로컬 개발
 
-Node.js 22.13 이상과 pnpm 9를 사용합니다. 등록 SQL 테스트는 Node.js 내장 SQLite로 실행합니다.
+Node.js 22.13 이상과 pnpm 9를 사용합니다. API 저장·권한·토큰 테스트는 Node.js 내장 SQLite로 실행합니다.
 
 ```bash
 pnpm install
@@ -45,36 +55,67 @@ pnpm check
 `homelab`은 지정된 status 커밋의 리포터를 서버에 설치하고, 장비별 설정과 토큰을 배치합니다.
 리포터는 홈랩 장비에서 실행하고 상태 페이지·API·D1은 Cloudflare에서 실행합니다.
 
-관리 PC에서 [감시 항목 예제](reporter/components.example.json)를 참고해 Git 제외
-`local/components.json`을 작성합니다. 이름과 설명은 공개 상태 페이지에 표시됩니다.
-이 명령은 SQL만 생성하며 DB를 변경하지 않습니다. 기존 항목의 ID·감시 시작 시각·활성 여부·상태·장애 이력은 유지합니다.
-기존 DB에 필요한 항목이 이미 등록돼 있으면 이 단계는 생략할 수 있습니다.
+관리 Secret은 관리 API 인증에만 사용하고, 각 Reporter는 자신의 별도 토큰으로 heartbeat를 보냅니다.
+서버가 토큰을 발급하고 D1에 해시와 권한을 저장하므로 등록 SQL을 만들거나 직접 적용하지 않습니다.
+기존에 등록된 Reporter 토큰과 heartbeat API는 그대로 사용할 수 있습니다.
+
+최초 설정은 Wrangler에 로그인한 관리 PC에서 실행합니다. Secret은 난수 32바이트이며
+Git 제외 `local/admin.env`에 0600으로 저장됩니다. 평문은 터미널에 출력되지 않습니다.
+배포 명령은 해당 값을 Cloudflare **production**의 암호화된 `STATUS_ADMIN_TOKEN` Secret으로 전달합니다.
 
 ```bash
-mkdir -p local
-pnpm --silent component:register local/components.json > local/components.sql
-# SQL과 대상 환경을 검토한 후 명시적으로 적용
-pnpm exec wrangler d1 execute status-production --remote \
-  --config wrangler.production.jsonc --file local/components.sql
+pnpm admin:secret:create
+pnpm admin:secret:deploy production
+# Secret을 사용하는 앱을 배포해야 Functions에 반영됩니다.
 ```
 
-호스트마다 별도의 토큰을 발급합니다. `--output-dir`은 새 디렉터리에 `token.env`와
-해시만 담긴 `register.sql`을 저장하고, 평문 토큰을 터미널에 출력하지 않습니다.
-디렉터리는 0700, 파일은 0600이며 기존 디렉터리는 덮어쓰지 않습니다.
-보고 대상 기기에는 pnpm이나 Node.js가 필요하지 않습니다.
+관리 CLI는 `local/admin.env`의 `STATUS_ADMIN_URL`과 `STATUS_ADMIN_TOKEN`을 읽습니다.
+다른 파일은 `STATUS_ADMIN_ENV_FILE`로 지정하고, 환경변수로 덮어쓸 수도 있습니다.
+운영·preview는 별도 관리 Secret과 Reporter 토큰을 사용합니다. preview 설정 시 새 파일을 만들고
+그 안의 URL을 preview 배포 주소로 변경한 후 `pnpm admin:secret:deploy preview local/admin.preview.env`를 사용합니다.
+관리 Secret은 Reporter 장비, 프런트엔드, URL, Git, 로그에 넣지 않습니다.
+로컬 개발은 별도 테스트 Secret을 `.dev.vars`에 `STATUS_ADMIN_TOKEN=...`으로 설정하고
+관리 CLI URL을 Wrangler의 localhost 주소로 지정합니다. Secret이 없거나 너무 짧으면 관리 API는 503으로 닫힙니다.
+
+관리 PC에서 [감시 항목 예제](reporter/components.example.json)를 참고해 `local/components.json`을 작성합니다.
+이름과 설명은 공개 페이지에 표시되므로 내부 IP나 비밀을 넣지 않습니다.
 
 ```bash
+pnpm component:register local/components.json
 pnpm token:create ubuntu-main ubuntu-main-server --output-dir local/ubuntu-main
 pnpm token:create k3s-main k3s-api k3s-nodes k3s-dns k3s-ingress --output-dir local/k3s-main
-pnpm exec wrangler d1 execute status-production --remote \
-  --config wrangler.production.jsonc --file local/ubuntu-main/register.sql
-# K3S 리포터를 사용한다면 local/k3s-main/register.sql도 같은 방식으로 적용
 ```
 
-요청한 모든 감시 항목이 먼저 등록되고 활성화돼 있어야 합니다. 기존 reporter ID로 재발급한
-SQL을 적용하면 INSERT 충돌이 납니다. 토큰 교체 절차로 사용하지 마세요.
-토큰은 Ansible Vault 또는 라우터의 root 전용 설정에만 보관하고 운영·미리보기 간에 재사용하지 않습니다.
-`--output-dir`을 생략하면 기존처럼 토큰과 SQL을 터미널에 표시합니다. 전체 출력을 SQL로 실행하면 안 됩니다.
+이 명령은 **즉시 원격 API를 호출하여 D1을 변경**합니다. 대상 URL을 확인하세요.
+감시 항목 재등록은 ID·감시 시작 시각·상태·장애 이력을 유지합니다. 기존 활성 여부는 `enabled`를
+명시할 때만 바뀝니다. 생략한 설명·대기 시간·정렬 순서는 기본값으로 설정하는 PUT 방식입니다.
+Reporter의 모든 감시 항목은 먼저 등록되고 활성화돼 있어야 하며, 같은 Reporter ID를 다시 생성하면 409입니다.
+`--output-dir`은 필수이고 새 디렉터리에 `token.env`만 저장합니다. 디렉터리는 0700, 파일은 0600이며
+기존 경로는 덮어쓰지 않습니다. API 응답에서 발급한 평문 토큰은 다시 조회할 수 없습니다.
+보고 대상 기기에는 Node.js가 필요 없고 `token.env`의 값을 Ansible Vault 또는 root 전용 설정으로 전달합니다.
+
+권한/이름/활성 여부 수정은 `local/update.json`에 `{ "components": ["ubuntu-main-server"], "enabled": true }`처럼 작성합니다.
+수정은 토큰과 sequence를 유지합니다. `{ "enabled": false }`는 Reporter의 보고를 차단합니다.
+
+```bash
+pnpm reporter:update ubuntu-main local/update.json
+pnpm token:rotate ubuntu-main --output-dir local/ubuntu-main-rotated
+```
+
+재발급은 즉시 이전 토큰을 폐기하고 sequence를 초기화하며 권한·활성 여부·장애 이력을 유지합니다.
+새 토큰을 장비에 반영할 때까지 기존 Reporter의 전송은 401이 됩니다.
+시간 초과처럼 요청 결과가 불확실한 경우 무작정 생성/재발급을 반복하지 말고 서버 상태를 확인하세요.
+
+| 관리 API | 동작 |
+| --- | --- |
+| `PUT /api/v1/admin/components` | 감시 항목 배열 등록/설정 |
+| `POST /api/v1/admin/reporters` | `{ id, name?, components }`로 생성, `{ reporterId, token }` 반환 |
+| `PATCH /api/v1/admin/reporters/:id` | `{ name?, enabled?, components? }` 수정 |
+| `POST /api/v1/admin/reporters/:id/token` | 토큰 재발급, `{ reporterId, token }` 반환 |
+
+관리 API는 HTTPS `Authorization: Bearer <STATUS_ADMIN_TOKEN>`으로 인증하고 응답을 `no-store`로 반환합니다.
+일반 Reporter 토큰으로 관리 API를 호출하거나 관리 Secret으로 heartbeat를 보낼 수 없습니다.
+Secret의 최초 설정/교체에는 Cloudflare 권한이 필요하지만 이후 장비 등록에는 관리 API 인증만 필요합니다.
 
 Linux 설치는 [homelab 설정 안내](reporter/ansible.md)를 따릅니다.
 관리 PC에 status를 원하는 커밋으로 준비하고 `status_reporter_source_dir`와
@@ -93,6 +134,9 @@ OPNsense·OpenWrt는 각각 [OPNsense](reporter/opnsense/README.md)·[OpenWrt](r
 ## Cloudflare 인프라 및 배포
 
 Terraform은 운영·미리보기 D1 데이터베이스, GitHub에 연결된 Pages 프로젝트, 각 환경의 D1 바인딩, `status.ggernaut.com` 사용자 지정 도메인 등록을 관리합니다. Cloudflare에서 도메인을 활성화하려면 별도 DNS 레코드가 `ggernaut-status.pages.dev`를 가리켜야 합니다.
+
+암호화된 관리 Secret은 Wrangler로 별도 설정합니다. Terraform은 환경별 `env_vars` 변경을 무시하여
+직접 설정한 Secret을 덮어쓰지 않으며 Secret 평문을 Terraform 설정에 넣지 않습니다.
 
 ```bash
 cd infra/cloudflare

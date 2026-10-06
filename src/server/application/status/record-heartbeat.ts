@@ -81,6 +81,7 @@ export async function recordHeartbeat(
 
   await dependencies.repository.persistHeartbeat({
     reporterId: reporter.id,
+    tokenHash: reporter.tokenHash,
     sequence: command.sequence,
     mutations,
   });

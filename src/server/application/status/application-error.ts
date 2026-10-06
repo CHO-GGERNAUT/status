@@ -2,6 +2,8 @@ export type ApplicationErrorCode =
   | "invalid_input"
   | "unauthorized"
   | "conflict"
+  | "not_found"
+  | "unavailable"
   | "internal_error";
 
 export class StatusApplicationError extends Error {

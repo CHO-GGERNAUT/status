@@ -1,4 +1,5 @@
 import type { ComponentGroupKey, ComponentStatus } from "../../../contracts/status-api";
+import { StatusApplicationError } from "../../application/status/application-error";
 import type { StatusRepository } from "../../domain/status/status-repository";
 import type {
   ComponentState,
@@ -85,14 +86,22 @@ export class D1StatusRepository implements StatusRepository {
       return;
     }
 
+    const slugs = heartbeat.mutations.map((mutation) => mutation.component.slug);
+    const placeholders = slugs.map(() => "?").join(", ");
     const statements: D1PreparedStatement[] = [
       this.#database
         .prepare(
           `UPDATE reporters
-           SET last_sequence = ?, last_seen_at = ?
-           WHERE id = ? AND enabled = 1 AND last_sequence < ?`,
+           SET last_sequence = CASE WHEN enabled = 1 AND token_hash = ? AND last_sequence < ?
+             AND ? = (SELECT COUNT(*) FROM reporter_components rc
+               JOIN components c ON c.id = rc.component_id
+               WHERE rc.reporter_id = reporters.id AND c.enabled = 1 AND c.slug IN (${placeholders}))
+             THEN ? ELSE NULL END,
+             last_seen_at = ?
+           WHERE id = ?`,
         )
-        .bind(heartbeat.sequence, receivedAt, heartbeat.reporterId, heartbeat.sequence),
+        .bind(heartbeat.tokenHash, heartbeat.sequence, slugs.length, ...slugs,
+          heartbeat.sequence, receivedAt, heartbeat.reporterId),
     ];
 
     for (const mutation of heartbeat.mutations) {
@@ -162,7 +171,26 @@ export class D1StatusRepository implements StatusRepository {
       );
     }
 
-    await this.#database.batch(statements);
+    // last_sequence is NOT NULL: stale authentication, permissions or sequence
+    // abort the entire D1 transaction before state/history can change.
+    try {
+      const result = await this.#database.batch(statements);
+      if (result[0].meta.changes === 0) throw new StatusApplicationError("unauthorized", "Reporter no longer exists");
+    } catch (error) {
+      const reporter = await this.#database.prepare("SELECT enabled, token_hash, last_sequence FROM reporters WHERE id = ?")
+        .bind(heartbeat.reporterId).all<{ enabled: number; token_hash: string; last_sequence: number }>();
+      const current = reporter.results[0];
+      if (!current || current.enabled !== 1 || current.token_hash !== heartbeat.tokenHash) {
+        throw new StatusApplicationError("unauthorized", "Reporter credentials were revoked");
+      }
+      if (current.last_sequence >= heartbeat.sequence) throw new StatusApplicationError("conflict", "Heartbeat sequence has already been used");
+      const grants = await this.#database.prepare(`SELECT c.slug FROM reporter_components rc
+        JOIN components c ON c.id = rc.component_id
+        WHERE rc.reporter_id = ? AND c.enabled = 1 AND c.slug IN (${placeholders})`)
+        .bind(heartbeat.reporterId, ...slugs).all<{ slug: string }>();
+      if (grants.results.length !== slugs.length) throw new StatusApplicationError("unauthorized", "Reporter permissions were revoked");
+      throw error;
+    }
   }
 
   async getPublicStatusData(incidentSince: number): Promise<PublicStatusData> {

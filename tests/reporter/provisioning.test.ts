@@ -1,112 +1,145 @@
-import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+const adminToken = "admin-" + "a".repeat(43);
+const reporterToken = "test-host." + "b".repeat(43);
 let directory: string;
-let database: DatabaseSync;
+let server: Server;
+let origin: string;
+let calls: { url: string; method: string; authorization: string; body: unknown }[];
+let responseStatus: number;
+let redirect: boolean;
 
-function cli(script: string, ...args: string[]) {
-  return spawnSync(process.execPath, [resolve("scripts", script), ...args], { encoding: "utf8" });
+async function cli(script: string, args: string[] = [], overrides: NodeJS.ProcessEnv = {}) {
+  return new Promise<{ status: number | null; stdout: string; stderr: string }>((accept, reject) => {
+    const child = spawn(process.execPath, [resolve("scripts", script), ...args], {
+      env: { ...process.env, STATUS_ADMIN_TOKEN: adminToken, STATUS_ADMIN_URL: origin,
+        STATUS_ADMIN_ENV_FILE: "", ...overrides }, stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = ""; let stderr = "";
+    child.stdout.on("data", (value) => { stdout += value; });
+    child.stderr.on("data", (value) => { stderr += value; });
+    child.on("error", reject);
+    child.on("close", (status) => accept({ status, stdout, stderr }));
+  });
 }
 
-function components(input: unknown) {
-  const file = join(directory, "components.json");
-  writeFileSync(file, JSON.stringify(input));
-  return cli("register-status-components.mjs", file);
-}
-
-function sqlite(sql: string) {
-  if (sql.trimStart().startsWith("SELECT ")) {
-    return database.prepare(sql).all().map((row) => Object.values(row).join("|")).join("\n");
-  }
-  database.exec(sql);
-  return "";
-}
-
-beforeEach(() => {
+beforeEach(async () => {
   directory = mkdtempSync(join(tmpdir(), "status-provisioning-"));
-  database = new DatabaseSync(":memory:");
+  calls = []; responseStatus = 200; redirect = false;
+  server = createServer(async (request, response) => {
+    let text = "";
+    for await (const chunk of request) text += chunk;
+    calls.push({ url: request.url ?? "", method: request.method ?? "", authorization: request.headers.authorization ?? "",
+      body: text ? JSON.parse(text) : undefined });
+    response.setHeader("Content-Type", "application/json");
+    if (redirect) {
+      response.writeHead(302, { Location: origin + "/should-not-follow" }); response.end(); return;
+    }
+    response.statusCode = responseStatus;
+    response.end(JSON.stringify(request.url?.includes("components") ? { updatedComponents: 1 } :
+      { reporterId: "test-host", token: reporterToken }));
+  });
+  await new Promise<void>((accept) => server.listen(0, "127.0.0.1", accept));
+  const address = server.address();
+  if (address === null || typeof address === "string") throw new Error("Missing test server address");
+  origin = "http://127.0.0.1:" + address.port;
 });
-afterEach(() => {
-  database.close();
+afterEach(async () => {
+  await new Promise<void>((accept, reject) => server.close((error) => error ? reject(error) : accept()));
   rmSync(directory, { recursive: true, force: true });
 });
 
-describe("reporter provisioning", () => {
-  it("writes protected token and SQL files without printing the secret", () => {
+describe("admin API provisioning CLI", () => {
+  it("registers through the API and writes only a protected token file without leaking credentials", async () => {
     const output = join(directory, "private", "host");
-    const result = cli("create-reporter-token.mjs", "test-host", "example-host", "--output-dir", output);
+    const result = await cli("create-reporter-token.mjs", ["test-host", "nas", "--output-dir", output]);
     expect(result.status, result.stderr).toBe(0);
-    const token = readFileSync(join(output, "token.env"), "utf8").trim().split("=")[1];
-    expect(token).toMatch(/^test-host\.[A-Za-z0-9_-]{43}$/);
-    expect(result.stdout + result.stderr).not.toContain(token);
-    const sql = readFileSync(join(output, "register.sql"), "utf8");
-    expect(sql).toContain(createHash("sha256").update(token).digest("hex"));
-    expect(sql).not.toContain(token);
+    expect(calls).toEqual([{ url: "/api/v1/admin/reporters", method: "POST", authorization: "Bearer " + adminToken,
+      body: { id: "test-host", components: ["nas"] } }]);
+    expect(readFileSync(join(output, "token.env"), "utf8")).toBe("STATUS_REPORTER_TOKEN=" + reporterToken + "\n");
+    expect(existsSync(join(output, "register.sql"))).toBe(false);
     expect(statSync(output).mode & 0o777).toBe(0o700);
-    for (const file of ["token.env", "register.sql"]) expect(statSync(join(output, file)).mode & 0o777).toBe(0o600);
-    const retry = cli("create-reporter-token.mjs", "test-host", "example-host", "--output-dir", output);
+    expect(statSync(join(output, "token.env")).mode & 0o777).toBe(0o600);
+    expect(result.stdout + result.stderr).not.toContain(reporterToken);
+    expect(result.stdout + result.stderr).not.toContain(adminToken);
+    const retry = await cli("create-reporter-token.mjs", ["test-host", "nas", "--output-dir", output]);
     expect(retry.status).not.toBe(0);
-    expect(readFileSync(join(output, "token.env"), "utf8")).toContain(token);
-    expect(readFileSync(join(output, "register.sql"), "utf8")).toBe(sql);
+    expect(calls).toHaveLength(1);
+    expect(readFileSync(join(output, "token.env"), "utf8")).toContain(reporterToken);
+  });
+
+  it("rotates through the explicit endpoint and reads credentials from a private env file", async () => {
+    const file = join(directory, "admin.env");
+    writeFileSync(file, "STATUS_ADMIN_URL=" + origin + "\nSTATUS_ADMIN_TOKEN=" + adminToken + "\n");
+    const output = join(directory, "rotated");
+    const result = await cli("create-reporter-token.mjs", ["--rotate", "test-host", "--output-dir", output],
+      { STATUS_ADMIN_TOKEN: undefined, STATUS_ADMIN_URL: undefined, STATUS_ADMIN_ENV_FILE: file });
+    expect(result.status, result.stderr).toBe(0);
+    expect(calls[0]).toMatchObject({ method: "POST", url: "/api/v1/admin/reporters/test-host/token", body: undefined });
+    expect(readFileSync(join(output, "token.env"), "utf8")).toContain(reporterToken);
+  });
+
+  it("configures components and updates reporters through the API without emitting SQL", async () => {
+    const file = join(directory, "configuration.json");
+    const components = [{ slug: "nas", group: "devices", name: "NAS's status" }];
+    writeFileSync(file, JSON.stringify(components));
+    const registration = await cli("register-status-components.mjs", [file]);
+    expect(registration.status, registration.stderr).toBe(0);
+    expect(calls[0]).toMatchObject({ method: "PUT", url: "/api/v1/admin/components", body: components });
+    expect(registration.stdout).not.toContain("INSERT");
+    writeFileSync(file, JSON.stringify({ enabled: false }));
+    expect((await cli("update-reporter.mjs", ["test-host", file])).status).toBe(0);
+    expect(calls[1]).toMatchObject({ method: "PATCH", url: "/api/v1/admin/reporters/test-host", body: { enabled: false } });
+  });
+
+  it("removes empty output after API errors and never prints a token-bearing error response", async () => {
+    responseStatus = 401;
+    const output = join(directory, "failed");
+    const result = await cli("create-reporter-token.mjs", ["test-host", "nas", "--output-dir", output]);
+    expect(result.status).not.toBe(0);
+    expect(existsSync(output)).toBe(false);
+    expect(result.stderr).toContain("HTTP 401");
+    expect(result.stdout + result.stderr).not.toContain(reporterToken);
+    expect(result.stdout + result.stderr).not.toContain(adminToken);
+  });
+
+  it("does not follow redirects or send credentials to insecure remote URLs", async () => {
+    redirect = true;
+    const output = join(directory, "redirect");
+    expect((await cli("create-reporter-token.mjs", ["test-host", "nas", "--output-dir", output])).status).not.toBe(0);
+    expect(calls).toHaveLength(1);
+    expect(existsSync(output)).toBe(false);
+    expect((await cli("create-reporter-token.mjs", ["test-host", "nas", "--output-dir", output],
+      { STATUS_ADMIN_URL: "http://remote.example.test" })).status).not.toBe(0);
+    expect(calls).toHaveLength(1);
   });
 
   it.each([
-    ["bad'id", "example-host"], ["test-host", "bad'component"], ["test-host"],
-    ["test-host", "example-host", "example-host"], ["test-host", "example-host", "--unknown"],
-  ])("rejects malformed token arguments: %j", (...args) => {
-    const result = cli("create-reporter-token.mjs", ...args);
+    ["bad'id", "nas"], ["test-host", "bad'component"], ["test-host"],
+    ["test-host", "nas", "nas"], ["test-host", "nas", "--unknown"],
+    ["--rotate", "test-host", "nas"],
+  ])("rejects malformed arguments before sending any API request: %j", async (...args) => {
+    const result = await cli("create-reporter-token.mjs", [...args, "--output-dir", join(directory, "invalid")]);
     expect(result.status).not.toBe(0);
+    expect(calls).toHaveLength(0);
     expect(result.stdout).toBe("");
   });
 
-  it("registers escaped display text without resetting existing state or reactivating a component", () => {
-    sqlite(readFileSync(resolve("migrations/0001_initial.sql"), "utf8"));
-    const first = components([{ slug: "example-host", group: "devices", name: "Host's status" }]);
-    expect(first.status, first.stderr).toBe(0);
-    sqlite(first.stdout);
-    sqlite(`UPDATE components SET enabled = 0, monitoring_started_at = 100;
-INSERT INTO reporters (id, display_name, token_hash, created_at) VALUES ('fixture', 'Fixture', 'hash', 100);
-INSERT INTO reporter_components VALUES ('fixture', 1);
-INSERT INTO current_states VALUES (1, 'outage', 'test outage', NULL, 150, 'fixture', 1);
-INSERT INTO incidents (component_id, started_at, cause) VALUES (1, 150, 'reported');`);
-    const second = components([{ slug: "example-host", group: "devices", name: "Renamed host", staleAfterSeconds: 240 }]);
-    expect(second.status, second.stderr).toBe(0);
-    sqlite(second.stdout);
-    expect(sqlite("SELECT id, display_name, enabled, monitoring_started_at, stale_after_seconds FROM components;")).toBe("1|Renamed host|0|100|240");
-    expect(sqlite("SELECT (SELECT COUNT(*) FROM current_states), (SELECT COUNT(*) FROM incidents), (SELECT COUNT(*) FROM reporter_components);")).toBe("1|1|1");
-  });
-
-  it("grants only registered enabled component permissions and does not rotate an existing token", () => {
-    sqlite(readFileSync(resolve("migrations/0001_initial.sql"), "utf8"));
-    const registered = components([
-      { slug: "active", group: "devices", name: "Active" },
-      { slug: "disabled", group: "devices", name: "Disabled" },
-    ]);
-    sqlite(registered.stdout);
-    sqlite("UPDATE components SET enabled = 0 WHERE slug = 'disabled';");
-    const output = join(directory, "host");
-    expect(cli("create-reporter-token.mjs", "fixture", "active", "disabled", "--output-dir", output).status).toBe(0);
-    const sql = readFileSync(join(output, "register.sql"), "utf8");
-    sqlite(sql);
-    expect(sqlite("SELECT c.slug FROM reporter_components rc JOIN components c ON c.id = rc.component_id;")).toBe("active");
-    const hash = sqlite("SELECT token_hash FROM reporters WHERE id = 'fixture';");
-    expect(() => sqlite(sql)).toThrow();
-    expect(sqlite("SELECT token_hash FROM reporters WHERE id = 'fixture';")).toBe(hash);
-  });
-
-  it.each([
-    [], [{ slug: "host", group: "devices", name: "Host", internalIp: "127.0.0.1" }],
-    [{ slug: "host", group: "devices", name: "Host", staleAfterSeconds: 30 }],
-    [{ slug: "host", group: "devices", name: "Host" }, { slug: "host", group: "k3s", name: "Duplicate" }],
-    [{ slug: "host", group: "invalid", name: "Host" }],
-  ].map((input) => ({ input })))("rejects invalid component lists without emitting partial SQL: %j", ({ input }) => {
-    const result = components(input);
-    expect(result.status).not.toBe(0);
-    expect(result.stdout).toBe("");
+  it("creates a strong private admin secret without printing or overwriting it", async () => {
+    const file = join(directory, "admin.env");
+    const result = await cli("create-admin-secret.mjs", [file]);
+    expect(result.status).toBe(0);
+    const contents = readFileSync(file, "utf8");
+    const secret = contents.match(/STATUS_ADMIN_TOKEN=([^\n]+)/)?.[1];
+    expect(secret).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(statSync(file).mode & 0o777).toBe(0o600);
+    expect(result.stdout + result.stderr).not.toContain(secret);
+    expect((await cli("create-admin-secret.mjs", [file])).status).not.toBe(0);
+    expect(readFileSync(file, "utf8")).toBe(contents);
   });
 });

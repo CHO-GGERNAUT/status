@@ -158,7 +158,7 @@ describe("portable reporter scripts", () => {
     const result = await recordHeartbeat(
       { ...payload, bearerToken: token, receivedAt: payload.sequence },
       {
-        authenticator: { authenticate: async () => ({ id: "test-host", lastSequence: 0,
+        authenticator: { authenticate: async () => ({ id: "test-host", tokenHash: "fixture-hash", lastSequence: 0,
           allowedComponentSlugs: new Set(payload.observations.map((item) => item.component)) }) },
         repository: {
           findComponentStatuses: async () => payload.observations.map((item, index) => ({

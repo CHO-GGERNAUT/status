@@ -1,5 +1,10 @@
 import type { ApiErrorResponse } from "../../../contracts/status-api";
-import { StatusApplicationError } from "../../application/status/application-error";
+import { StatusApplicationError, type ApplicationErrorCode } from "../../application/status/application-error";
+
+const ERROR_STATUS: Record<ApplicationErrorCode, number> = {
+  unauthorized: 401, conflict: 409, not_found: 404,
+  unavailable: 503, invalid_input: 400, internal_error: 500,
+};
 
 export function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers);
@@ -17,14 +22,7 @@ export function methodNotAllowed(allowed: string): Response {
 
 export function errorResponse(error: unknown): Response {
   if (error instanceof StatusApplicationError) {
-    const status =
-      error.code === "unauthorized"
-        ? 401
-        : error.code === "conflict"
-          ? 409
-          : error.code === "invalid_input"
-            ? 400
-            : 500;
+    const status = ERROR_STATUS[error.code];
     return jsonResponse(
       {
         error: error.code,

@@ -1,5 +1,6 @@
 import type { ReporterAuthenticator } from "../../domain/status/reporter-authenticator";
 import type { ReporterIdentity } from "../../domain/status/types";
+import { constantTimeEqual, sha256Hex } from "./token-crypto";
 
 interface ReporterRow {
   id: string;
@@ -53,28 +54,9 @@ export class D1ReporterAuthenticator implements ReporterAuthenticator {
 
     return {
       id: first.id,
+      tokenHash: first.token_hash,
       lastSequence: first.last_sequence,
       allowedComponentSlugs: new Set(result.results.map((row) => row.component_slug)),
     };
   }
-}
-
-async function sha256Hex(value: string): Promise<string> {
-  const bytes = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-function constantTimeEqual(left: string, right: string): boolean {
-  if (left.length !== right.length) {
-    return false;
-  }
-
-  let result = 0;
-  for (let index = 0; index < left.length; index += 1) {
-    result |= left.charCodeAt(index) ^ right.charCodeAt(index);
-  }
-  return result === 0;
 }

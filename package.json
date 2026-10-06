@@ -17,6 +17,10 @@
     "db:migrate:preview": "wrangler d1 migrations apply status-preview --remote --config wrangler.preview.jsonc",
     "db:migrate:production": "wrangler d1 migrations apply status-production --remote --config wrangler.production.jsonc",
     "token:create": "node scripts/create-reporter-token.mjs",
+    "token:rotate": "node scripts/create-reporter-token.mjs --rotate",
+    "reporter:update": "node scripts/update-reporter.mjs",
+    "admin:secret:create": "node scripts/create-admin-secret.mjs",
+    "admin:secret:deploy": "node scripts/deploy-admin-secret.mjs",
     "component:register": "node scripts/register-status-components.mjs"
   },
   "dependencies": {

@@ -19,6 +19,14 @@ resource "cloudflare_pages_project" "status" {
   name              = var.pages_project_name
   production_branch = var.production_branch
 
+  # Runtime secrets are configured with Wrangler and kept out of Terraform input/state.
+  lifecycle {
+    ignore_changes = [
+      deployment_configs.production.env_vars,
+      deployment_configs.preview.env_vars,
+    ]
+  }
+
   build_config = {
     build_command   = "pnpm check"
     destination_dir = "dist"

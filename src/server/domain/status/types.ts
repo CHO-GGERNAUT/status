@@ -38,6 +38,7 @@ export interface StoredComponentStatus {
 
 export interface ReporterIdentity {
   id: string;
+  tokenHash: string;
   lastSequence: number;
   allowedComponentSlugs: ReadonlySet<string>;
 }
@@ -65,6 +66,7 @@ export interface HeartbeatStateMutation {
 
 export interface PersistHeartbeat {
   reporterId: string;
+  tokenHash: string;
   sequence: number;
   mutations: HeartbeatStateMutation[];
 }

@@ -1,58 +1,35 @@
-import { createHash, randomBytes } from "node:crypto";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { adminRequest } from "./admin-client.mjs";
 
-let args;
+let directory;
+let created = false;
 try {
-  args = parseArgs({ allowPositionals: true, options: { "output-dir": { type: "string" } } });
-} catch {
-  console.error("Usage: pnpm token:create <reporter-id> <component-slug> [...] [--output-dir <new-directory>]");
-  process.exit(1);
-}
-const [reporterId, ...componentSlugs] = args.positionals;
-const slugPattern = /^[a-z0-9][a-z0-9-]{0,62}$/;
-
-if (reporterId === undefined || !slugPattern.test(reporterId) || componentSlugs.length === 0) {
-  console.error(
-    "Usage: pnpm token:create <reporter-id> <component-slug> [...] [--output-dir <new-directory>]",
-  );
-  process.exit(1);
-}
-
-if (!componentSlugs.every((slug) => slugPattern.test(slug)) || new Set(componentSlugs).size !== componentSlugs.length) {
-  console.error("Reporter and component identifiers must use lowercase letters, numbers, and hyphens.");
-  process.exit(1);
-}
-
-const token = `${reporterId}.${randomBytes(32).toString("base64url")}`;
-const tokenHash = createHash("sha256").update(token).digest("hex");
-const componentList = componentSlugs.map((slug) => `'${slug}'`).join(", ");
-const sql = [
-  `INSERT INTO reporters (id, display_name, token_hash, created_at) VALUES ('${reporterId}', '${reporterId}', '${tokenHash}', unixepoch());`,
-  `INSERT INTO reporter_components (reporter_id, component_id) SELECT '${reporterId}', id FROM components WHERE enabled = 1 AND slug IN (${componentList});`,
-].join("\n") + "\n";
-
-if (args.values["output-dir"] !== undefined) {
-  const directory = resolve(args.values["output-dir"]);
-  let created = false;
-  try {
-    mkdirSync(dirname(directory), { recursive: true, mode: 0o700 });
-    mkdirSync(directory, { mode: 0o700 });
-    created = true;
-    writeFileSync(resolve(directory, "token.env"), `STATUS_REPORTER_TOKEN=${token}\n`, { mode: 0o600, flag: "wx" });
-    writeFileSync(resolve(directory, "register.sql"), sql, { mode: 0o600, flag: "wx" });
-  } catch {
-    if (created) rmSync(directory, { recursive: true, force: true });
-    console.error("Cannot create token files; choose a new writable output directory. Existing directories are never overwritten.");
-    process.exit(1);
+  const args = parseArgs({ allowPositionals: true, options: {
+    "output-dir": { type: "string" }, rotate: { type: "boolean", default: false },
+  } });
+  const [reporterId, ...components] = args.positionals;
+  const slugPattern = /^[a-z0-9][a-z0-9-]{0,62}$/;
+  if (!reporterId || !slugPattern.test(reporterId) || !args.values["output-dir"]
+    || (args.values.rotate ? components.length !== 0 : components.length === 0)
+    || !components.every((slug) => slugPattern.test(slug)) || new Set(components).size !== components.length) {
+    throw new Error("Usage: pnpm token:create <reporter-id> <component-slug> [...] --output-dir <new-directory> OR pnpm token:rotate <reporter-id> --output-dir <new-directory>");
   }
-  console.log(`Created token.env and register.sql in ${directory}. Register every component before applying the SQL.`);
-  process.exit(0);
+  directory = resolve(args.values["output-dir"]);
+  mkdirSync(dirname(directory), { recursive: true, mode: 0o700 });
+  mkdirSync(directory, { mode: 0o700 });
+  created = true;
+  const path = args.values.rotate ? `/api/v1/admin/reporters/${reporterId}/token` : "/api/v1/admin/reporters";
+  const result = await adminRequest(path, "POST", args.values.rotate ? undefined : { id: reporterId, components });
+  if (result.reporterId !== reporterId || typeof result.token !== "string"
+    || !new RegExp(`^${reporterId}\\.[A-Za-z0-9_-]{43}$`).test(result.token)) {
+    throw new Error("Unexpected token response; check the server and rotate the reporter token before use");
+  }
+  writeFileSync(resolve(directory, "token.env"), `STATUS_REPORTER_TOKEN=${result.token}\n`, { mode: 0o600, flag: "wx" });
+  console.log(`Registered ${reporterId}; token saved to ${directory}/token.env. Token plaintext is never printed.`);
+} catch (error) {
+  if (created) rmSync(directory, { recursive: true, force: true });
+  console.error(error instanceof Error ? error.message : "Cannot create protected token files; use a new writable directory");
+  process.exitCode = 1;
 }
-
-console.log("Store this token on the reporter host. It will not be shown again:");
-console.log(token);
-console.log("");
-console.log("Apply the following SQL to D1:");
-console.log(sql.trimEnd());

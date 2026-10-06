@@ -12,6 +12,7 @@ class FakeAuthenticator implements ReporterAuthenticator {
   async authenticate() {
     return {
       id: "main-host",
+      tokenHash: "fixture-hash",
       lastSequence: 10,
       allowedComponentSlugs: new Set(["ubuntu-main-server"]),
     };
