@@ -1,1 +1,5 @@
 cloudflare_account_id = "replace-with-account-id"
+github_owner          = "your-github-user-or-organization"
+github_repository     = "status"
+pages_project_name    = "your-status-project"
+custom_domain         = "status.example.com"

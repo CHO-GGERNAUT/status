@@ -13,7 +13,7 @@ Example root crontab:
 Create `/etc/ggernaut-status.env`, root:root and 0600, containing:
 
 ```text
-STATUS_REPORTER_URL=https://status.ggernaut.com/api/v1/heartbeat
+STATUS_REPORTER_URL=https://status.example.com/api/v1/heartbeat
 STATUS_REPORTER_TOKEN=<openwrt reporter token>
 STATUS_COMPONENT=openwrt
 ```

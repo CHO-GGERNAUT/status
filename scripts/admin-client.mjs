@@ -7,11 +7,7 @@ export async function adminRequest(path, method, body) {
   const configuration = { ...(existsSync(envFile) ? parseEnv(readFileSync(envFile, "utf8")) : {}), ...process.env };
   const token = configuration.STATUS_ADMIN_TOKEN;
   if (!token || token.length < 32) throw new Error("Set STATUS_ADMIN_TOKEN or create a private local/admin.env");
-  const base = new URL(configuration.STATUS_ADMIN_URL ?? "https://status.ggernaut.com");
-  if ((base.protocol !== "https:" && !(base.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(base.hostname)))
-    || base.username || base.password || base.search || base.hash || base.pathname !== "/") {
-    throw new Error("STATUS_ADMIN_URL must be an HTTPS origin (HTTP is allowed only for localhost)");
-  }
+  const base = adminOrigin(configuration.STATUS_ADMIN_URL);
   let response;
   try {
     response = await fetch(new URL(path, base), {
@@ -28,4 +24,19 @@ export async function adminRequest(path, method, body) {
   } catch {
     throw new Error("Admin API returned an invalid response; check the server before retrying token creation/rotation");
   }
+}
+
+export function adminOrigin(value) {
+  if (!value) throw new Error("Set STATUS_ADMIN_URL to your own status server origin");
+  let base;
+  try {
+    base = new URL(value);
+  } catch {
+    throw new Error("STATUS_ADMIN_URL must be a valid HTTPS origin");
+  }
+  if ((base.protocol !== "https:" && !(base.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(base.hostname)))
+    || base.username || base.password || base.search || base.hash || base.pathname !== "/") {
+    throw new Error("STATUS_ADMIN_URL must be an HTTPS origin (HTTP is allowed only for localhost)");
+  }
+  return base;
 }

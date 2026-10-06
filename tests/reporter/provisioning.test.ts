@@ -18,6 +18,7 @@ async function cli(script: string, args: string[] = [], overrides: NodeJS.Proces
   return new Promise<{ status: number | null; stdout: string; stderr: string }>((accept, reject) => {
     const child = spawn(process.execPath, [resolve("scripts", script), ...args], {
       env: { ...process.env, STATUS_ADMIN_TOKEN: adminToken, STATUS_ADMIN_URL: origin,
+        STATUS_PAGES_PROJECT: "test-status-project",
         STATUS_ADMIN_ENV_FILE: "", ...overrides }, stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = ""; let stderr = "";
@@ -137,9 +138,36 @@ describe("admin API provisioning CLI", () => {
     const contents = readFileSync(file, "utf8");
     const secret = contents.match(/STATUS_ADMIN_TOKEN=([^\n]+)/)?.[1];
     expect(secret).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(contents).toContain("STATUS_ADMIN_URL=" + origin);
+    expect(contents).toContain("STATUS_PAGES_PROJECT=test-status-project");
     expect(statSync(file).mode & 0o777).toBe(0o600);
     expect(result.stdout + result.stderr).not.toContain(secret);
     expect((await cli("create-admin-secret.mjs", [file])).status).not.toBe(0);
     expect(readFileSync(file, "utf8")).toBe(contents);
+  });
+
+  it("requires an explicit server URL instead of falling back to the maintainer's production service", async () => {
+    const envFile = join(directory, "admin.env");
+    writeFileSync(envFile, "STATUS_ADMIN_TOKEN=" + adminToken + "\n");
+    const result = await cli("create-reporter-token.mjs", ["test-host", "nas", "--output-dir", join(directory, "missing-origin")],
+      { STATUS_ADMIN_URL: undefined, STATUS_ADMIN_ENV_FILE: envFile });
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("Set STATUS_ADMIN_URL");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("uploads the secret to the configured Pages project via stdin without exposing subprocess output", async () => {
+    const envFile = join(directory, "admin.env");
+    const recorded = join(directory, "upload.json");
+    writeFileSync(envFile, "STATUS_ADMIN_TOKEN=" + adminToken + "\nSTATUS_PAGES_PROJECT=someone-elses-status\n");
+    writeFileSync(join(directory, "pnpm"), `#!${process.execPath}\nconst fs=require('node:fs'); const secret=fs.readFileSync(0,'utf8'); fs.writeFileSync(process.env.TEST_UPLOAD, JSON.stringify({args:process.argv.slice(2),secret})); console.log(secret);`, { mode: 0o755 });
+    const result = await cli("deploy-admin-secret.mjs", ["production", envFile], {
+      STATUS_PAGES_PROJECT: undefined, TEST_UPLOAD: recorded, PATH: directory + ":" + process.env.PATH,
+    });
+    expect(result.status, result.stderr).toBe(0);
+    const upload = JSON.parse(readFileSync(recorded, "utf8"));
+    expect(upload.args).toEqual(["exec", "wrangler", "pages", "secret", "put", "STATUS_ADMIN_TOKEN", "--project-name", "someone-elses-status", "--env", "production"]);
+    expect(upload.secret).toBe(adminToken);
+    expect(upload.args.join(" ") + result.stdout + result.stderr).not.toContain(adminToken);
   });
 });

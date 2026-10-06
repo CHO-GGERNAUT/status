@@ -9,7 +9,7 @@ Confirm curl >= 7.55.0 is available. Copy all files from `reporter/bin/` to
 `/usr/local/etc/ggernaut-status` with a root:wheel 0600 `host.env` containing:
 
 ```text
-STATUS_REPORTER_URL=https://status.ggernaut.com/api/v1/heartbeat
+STATUS_REPORTER_URL=https://status.example.com/api/v1/heartbeat
 STATUS_REPORTER_TOKEN=<opnsense reporter token>
 STATUS_COMPONENT=opnsense
 ```

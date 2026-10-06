@@ -24,7 +24,7 @@ this revokes the previous token immediately. Update name/permissions/enabled sta
 Required environment:
 
 ```dotenv
-STATUS_REPORTER_URL=https://status.ggernaut.com/api/v1/heartbeat
+STATUS_REPORTER_URL=https://status.example.com/api/v1/heartbeat
 STATUS_REPORTER_TOKEN=<registered-reporter-id.secret>
 STATUS_COMPONENT=ubuntu-main-server
 ```
@@ -85,7 +85,7 @@ HTTP routing. Missing ready replicas count as zero; nodes without a Ready condit
 
 Check `journalctl -u status-host-reporter.service -n 20 --no-pager` (or the K3S unit) for
 `Heartbeat accepted (HTTP 202)`. Then confirm that the correct component's `lastReceivedAt`
-advances at `https://status.ggernaut.com/api/v1/status`. An accepted heartbeat plus API state
+advances at `https://status.example.com/api/v1/status`. An accepted heartbeat plus API state
 is the live verification; script/unit installation alone is not. The public API can be cached.
 401/403 means check token, DB environment and component permissions; 409 means clock/duplicate
 sequence; transport failure means inspect DNS/TLS/egress. After 180 seconds without a heartbeat

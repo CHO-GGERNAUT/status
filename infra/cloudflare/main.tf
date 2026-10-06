@@ -36,8 +36,8 @@ resource "cloudflare_pages_project" "status" {
   source = {
     type = "github"
     config = {
-      owner                          = "CHO-GGERNAUT"
-      repo_name                      = "status"
+      owner                          = var.github_owner
+      repo_name                      = var.github_repository
       production_branch              = var.production_branch
       production_deployments_enabled = true
       preview_deployment_setting     = "all"

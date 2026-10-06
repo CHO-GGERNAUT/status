@@ -13,3 +13,5 @@ dist/
 infra/cloudflare/*.tfvars
 !infra/cloudflare/example.tfvars
 local/
+wrangler.production.jsonc
+wrangler.preview.jsonc
