@@ -52,7 +52,7 @@ pnpm check
 ## 리포터 등록 및 설치
 
 리포터 구현·systemd 유닛·라우터 설치 안내·동작 테스트는 이 `status` 레포에서 관리합니다.
-`homelab`은 지정된 status 커밋의 리포터를 서버에 설치하고, 장비별 설정과 토큰을 배치합니다.
+장비별 설치와 설정은 이 레포의 Linux·라우터 설치 절차를 따릅니다.
 리포터는 홈랩 장비에서 실행하고 상태 페이지·API·D1은 Cloudflare에서 실행합니다.
 
 관리 Secret은 관리 API 인증에만 사용하고, 각 Reporter는 자신의 별도 토큰으로 heartbeat를 보냅니다.
@@ -117,11 +117,9 @@ pnpm token:rotate ubuntu-main --output-dir local/ubuntu-main-rotated
 일반 Reporter 토큰으로 관리 API를 호출하거나 관리 Secret으로 heartbeat를 보낼 수 없습니다.
 Secret의 최초 설정/교체에는 Cloudflare 권한이 필요하지만 이후 장비 등록에는 관리 API 인증만 필요합니다.
 
-Linux 설치는 [homelab 설정 안내](reporter/ansible.md)를 따릅니다.
-관리 PC에 status를 원하는 커밋으로 준비하고 `status_reporter_source_dir`와
-`status_reporter_revision`에 경로와 40자리 커밋 SHA를 지정합니다.
-Ansible은 리포터 파일이 수정되지 않았고 해당 커밋과 일치하는지 확인한 다음 설치합니다.
-아직 커밋하지 않은 리포터 변경은 설치 대상으로 사용할 수 없습니다.
+Linux 설치는 [Reporter 운영 안내](reporter/README.md#linux-debianubuntu-systemd)를 따릅니다.
+검토한 status 커밋의 스크립트와 systemd 유닛을 대상 장비에 설치하고,
+장비별 URL·토큰·component를 root 소유 0600 설정에 저장합니다.
 
 호스트 리포터의 생존 신호는 서버가 실행 중이고 Cloudflare에 연결할 수 있다는 의미입니다.
 개별 앱의 정상 동작까지 확인하지 않습니다. K3S 리포터는 서버 노드 한 대에서

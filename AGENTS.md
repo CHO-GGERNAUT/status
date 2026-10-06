@@ -13,7 +13,7 @@ Public status page deployed to Cloudflare Pages with Pages Functions and D1.
 - `infra/cloudflare`: long-lived Cloudflare resources managed by Terraform.
 - `reporter`: portable host and K3S heartbeat clients.
 - `scripts`: admin API clients and protected secret/token files. Registration writes D1 through the API; do not generate registration SQL.
-- `homelab` installs a pinned checkout of this repository. Keep reporter source and behavior tests here.
+- Keep reporter source, installation instructions and behavior tests in this repository.
 
 ## Invariants
 

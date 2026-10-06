@@ -14,7 +14,7 @@ From this checkout, register components through the management API with
 For the one selected K3S server use a separate token with all four slugs:
 `pnpm token:create k3s-main k3s-api k3s-nodes k3s-dns k3s-ingress --output-dir local/k3s-main`.
 The API registers the hash/permissions in D1; the CLI saves only `token.env` (0600) in a new
-directory (0700). No SQL or plaintext token is printed. Install its value into private homelab host_vars.
+directory (0700). No SQL or plaintext token is printed. Install its value into the root-only reporter environment file.
 Keep credentials in private `local/` configuration (gitignored) or an encrypted inventory.
 Never put the admin Secret on a reporter or reuse production tokens in preview.
 Existing IDs return 409. Explicitly rotate with `pnpm token:rotate <id> --output-dir local/<new-directory>`;
@@ -29,8 +29,7 @@ STATUS_REPORTER_TOKEN=<registered-reporter-id.secret>
 STATUS_COMPONENT=ubuntu-main-server
 ```
 
-Each component should have one writer. Map to enabled, registered slugs in your private inventory.
-See the [homelab deployment guide](ansible.md).
+Each component should have one writer. Configure enabled, registered slugs in the reporter environment file.
 Devices need working DNS, CA trust, outbound TCP 443, an accurate clock and curl >= 7.55.0.
 Credentials go to curl via stdin, not process arguments. HTTPS redirects are not followed;
 only HTTP 202 counts as success. HTTP bodies and tokens are not logged.
@@ -39,13 +38,7 @@ sequence. Keep NTP enabled; a backwards clock or duplicate reporter can cause HT
 
 ## Linux (Debian/Ubuntu, systemd)
 
-Preferred: use homelab's deployment guide and `make status-reporters NODE=<inventory-host>`
-from the homelab checkout. Set `status_reporter_source_dir` to this status checkout and
-`status_reporter_revision` to its full commit SHA. Homelab verifies the pinned commit and clean
-reporter files before copying anything. It does not clone, switch branches or provision D1 tokens.
-The groups are opt-in and do not change Docker/K3S stacks.
-
-For manual installation, after installing curl and CA certificates, create a system group/user
+From a reviewed status checkout, after installing curl and CA certificates, create a system group/user
 named `status-reporter` with no login shell or home. As root, from this checkout:
 
 ```sh
