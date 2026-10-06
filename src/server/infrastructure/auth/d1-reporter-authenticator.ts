@@ -37,7 +37,7 @@ export class D1ReporterAuthenticator implements ReporterAuthenticator {
          FROM reporters r
          JOIN reporter_components rc ON rc.reporter_id = r.id
          JOIN components c ON c.id = rc.component_id
-         WHERE r.id = ? AND r.enabled = 1 AND c.enabled = 1`,
+         WHERE r.id = ? AND r.enabled = 1 AND c.enabled = 1 AND c.group_key = 'devices'`,
       )
       .bind(reporterId)
       .all<ReporterRow>();

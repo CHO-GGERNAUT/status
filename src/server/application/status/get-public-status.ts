@@ -24,7 +24,6 @@ const MONTH_SECONDS = 30 * DAY_SECONDS;
 const QUARTER_SECONDS = 90 * DAY_SECONDS;
 const GROUP_NAMES: Record<ComponentGroupKey, string> = {
   devices: "Device Status",
-  k3s: "K3S Status",
 };
 
 export interface GetPublicStatusQuery {

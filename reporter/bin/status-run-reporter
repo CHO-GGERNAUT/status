@@ -2,9 +2,9 @@
 # For root-owned cron/configd configuration only. This file is shell code, not
 # arbitrary user input; install it root:root 0600 in a root-owned directory.
 set -eu
-[ "$#" -eq 2 ] || { echo 'Usage: status-run-reporter /absolute/config.env host|k3s' >&2; exit 2; }
+[ "$#" -eq 2 ] || { echo 'Usage: status-run-reporter /absolute/config.env host' >&2; exit 2; }
 case "$1" in /*) ;; *) echo 'Configuration path must be absolute' >&2; exit 2 ;; esac
-case "$2" in host|k3s) ;; *) echo 'Unknown reporter kind' >&2; exit 2 ;; esac
+case "$2" in host) ;; *) echo 'Unknown reporter kind' >&2; exit 2 ;; esac
 reporter_dir=$(CDPATH='' cd -- "$(dirname "$0")" && pwd)
 reporter_kind=$2
 set -a

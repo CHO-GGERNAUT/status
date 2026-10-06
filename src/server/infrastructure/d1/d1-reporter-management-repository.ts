@@ -77,15 +77,15 @@ export class D1ReporterManagementRepository implements ReporterManagementReposit
     // rolling back the batch even if configuration changed after validation.
     return slugs.map((slug) => this.database.prepare(`
       INSERT INTO reporter_components (reporter_id, component_id)
-      VALUES (?, (SELECT id FROM components WHERE slug = ? AND enabled = 1))
+      VALUES (?, (SELECT id FROM components WHERE slug = ? AND enabled = 1 AND group_key = 'devices'))
     `).bind(id, slug));
   }
 
   private async validateComponents(slugs: string[], allowMissing = false) {
-    const result = await this.database.prepare(`SELECT slug, enabled FROM components WHERE slug IN (${slugs.map(() => "?").join(", ")})`)
-      .bind(...slugs).all<{ slug: string; enabled: number }>();
-    if ((!allowMissing && result.results.length !== slugs.length) || result.results.some((row) => row.enabled !== 1)) {
-      throw new StatusApplicationError("invalid_input", "Every component must be registered and enabled");
+    const result = await this.database.prepare(`SELECT slug, enabled, group_key FROM components WHERE slug IN (${slugs.map(() => "?").join(", ")})`)
+      .bind(...slugs).all<{ slug: string; enabled: number; group_key: string }>();
+    if ((!allowMissing && result.results.length !== slugs.length) || result.results.some((row) => row.enabled !== 1 || row.group_key !== "devices")) {
+      throw new StatusApplicationError("invalid_input", "Every component must be a registered, enabled device");
     }
   }
 

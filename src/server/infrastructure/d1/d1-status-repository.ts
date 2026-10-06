@@ -73,7 +73,7 @@ export class D1StatusRepository implements StatusRepository {
 
     const placeholders = slugs.map(() => "?").join(", ");
     const result = await this.#database
-      .prepare(`${COMPONENT_STATUS_SELECT} WHERE c.enabled = 1 AND c.slug IN (${placeholders})`)
+      .prepare(`${COMPONENT_STATUS_SELECT} WHERE c.enabled = 1 AND c.group_key = 'devices' AND c.slug IN (${placeholders})`)
       .bind(...slugs)
       .all<ComponentStateRow>();
 
@@ -95,7 +95,7 @@ export class D1StatusRepository implements StatusRepository {
            SET last_sequence = CASE WHEN enabled = 1 AND token_hash = ? AND last_sequence < ?
              AND ? = (SELECT COUNT(*) FROM reporter_components rc
                JOIN components c ON c.id = rc.component_id
-               WHERE rc.reporter_id = reporters.id AND c.enabled = 1 AND c.slug IN (${placeholders}))
+               WHERE rc.reporter_id = reporters.id AND c.enabled = 1 AND c.group_key = 'devices' AND c.slug IN (${placeholders}))
              THEN ? ELSE NULL END,
              last_seen_at = ?
            WHERE id = ?`,
@@ -186,7 +186,7 @@ export class D1StatusRepository implements StatusRepository {
       if (current.last_sequence >= heartbeat.sequence) throw new StatusApplicationError("conflict", "Heartbeat sequence has already been used");
       const grants = await this.#database.prepare(`SELECT c.slug FROM reporter_components rc
         JOIN components c ON c.id = rc.component_id
-        WHERE rc.reporter_id = ? AND c.enabled = 1 AND c.slug IN (${placeholders})`)
+        WHERE rc.reporter_id = ? AND c.enabled = 1 AND c.group_key = 'devices' AND c.slug IN (${placeholders})`)
         .bind(heartbeat.reporterId, ...slugs).all<{ slug: string }>();
       if (grants.results.length !== slugs.length) throw new StatusApplicationError("unauthorized", "Reporter permissions were revoked");
       throw error;
@@ -198,8 +198,8 @@ export class D1StatusRepository implements StatusRepository {
       this.#database
         .prepare(
           `${COMPONENT_STATUS_SELECT}
-           WHERE c.enabled = 1
-           ORDER BY CASE c.group_key WHEN 'devices' THEN 0 ELSE 1 END, c.sort_order, c.id`,
+           WHERE c.enabled = 1 AND c.group_key = 'devices'
+           ORDER BY c.sort_order, c.id`,
         )
         .all<ComponentStateRow>(),
       this.#database

@@ -63,7 +63,6 @@ export function StatusApp() {
           </a>
           <div className="topbar__links">
             <a href="#devices">Devices</a>
-            <a href="#k3s">K3S</a>
             <a href="#incidents">Incidents</a>
           </div>
         </nav>

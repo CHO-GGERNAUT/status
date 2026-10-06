@@ -2,7 +2,7 @@
 
 Install curl >= 7.55.0 and CA certificates using the package manager for your OpenWrt release.
 Copy all files from `reporter/bin/` to `/usr/local/libexec/ggernaut-status/`, root-owned and 0755.
-`status-common.sh` is required beside the reporter. Use cron independently of Docker/K3S.
+`status-common.sh` is required beside the reporter. Use cron on the device.
 
 Example root crontab:
 

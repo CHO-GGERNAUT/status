@@ -11,13 +11,14 @@ Public status page deployed to Cloudflare Pages with Pages Functions and D1.
 - `functions`: thin Cloudflare Pages Function entry points.
 - `src/web`: React status dashboard.
 - `infra/cloudflare`: long-lived Cloudflare resources managed by Terraform.
-- `reporter`: portable host and K3S heartbeat clients.
+- `reporter`: portable device heartbeat clients.
 - `scripts`: admin API clients and protected secret/token files. Registration writes D1 through the API; do not generate registration SQL.
 - Keep reporter source, installation instructions and behavior tests in this repository.
 
 ## Invariants
 
 - Reporters push outbound HTTPS heartbeats once per minute.
+- Collect device heartbeats only; Kubernetes status collection is not supported.
 - A component is in outage after 180 seconds without a heartbeat.
 - Components are independent; do not implement cascading or dependency-derived outages.
 - Use Cloudflare receipt time as the authoritative availability timestamp.

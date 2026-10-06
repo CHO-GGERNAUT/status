@@ -1,6 +1,6 @@
 # Status
 
-기기와 K3S의 상태를 Reporter의 heartbeat로 확인하는 상태 페이지입니다.
+기기의 상태를 Reporter의 heartbeat로 확인하는 상태 페이지입니다.
 
 ## 로컬 실행
 

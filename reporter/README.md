@@ -15,8 +15,6 @@ Use the returned token and `STATUS_COMPONENT=nas` when installing this host's re
 
 For a reporter covering existing components, pass their slugs explicitly; register those
 components first with `pnpm component:register local/components.json`.
-For the one selected K3S server use a separate token with all four registered slugs:
-`pnpm token:create k3s-main k3s-api k3s-nodes k3s-dns k3s-ingress --output-dir local/k3s-main`.
 The API registers the hash/permissions in D1; the CLI saves only `token.env` (0600) in a new
 directory (0700). No SQL or plaintext token is printed. Install its value into the root-only reporter environment file.
 Keep credentials in private `local/` configuration (gitignored) or an encrypted inventory.
@@ -61,33 +59,12 @@ the timer rather than expecting a long-running service process. Do not start a s
 manually at the same second as the timer. Removing a host from inventory does not uninstall an
 already active reporter: explicitly disable its timer and disable it through the admin API when retiring it.
 
-## K3S server only
-
-Use one existing K3S server, not an agent or a pod, with separate root-owned 0600 `k3s.env`.
-Set the URL/token above (no STATUS_COMPONENT) and optional overrides:
-
-```dotenv
-STATUS_K3S_BIN=/usr/local/bin/k3s
-STATUS_K3S_KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-STATUS_K3S_DNS_NAMESPACE=kube-system
-STATUS_K3S_DNS_WORKLOAD=coredns
-STATUS_K3S_INGRESS_NAMESPACE=platform-system
-STATUS_K3S_INGRESS_WORKLOAD=traefik
-```
-
-Install the matching `status-k3s-reporter.service`/`.timer` and enable its timer.
-It runs as root with an explicit local kubeconfig; it does not use ambient KUBECONFIG.
-Each of four read-only queries has a 5-second request timeout; systemd bounds the whole service
-at 45 seconds. Even when `/readyz` fails, the other components are checked independently.
-CoreDNS and ingress checks inspect desired/ready Deployment replicas, not DNS queries or external
-HTTP routing. Missing ready replicas count as zero; nodes without a Ready condition count as unready.
-
 ## Routers and verification
 
 - [OPNsense configd/cron](opnsense/README.md)
 - [OpenWrt cron](openwrt/README.md)
 
-Check `journalctl -u status-host-reporter.service -n 20 --no-pager` (or the K3S unit) for
+Check `journalctl -u status-host-reporter.service -n 20 --no-pager` for
 `Heartbeat accepted (HTTP 202)`. Then confirm that the correct component's `lastReceivedAt`
 advances at `https://status.example.com/api/v1/status`. An accepted heartbeat plus API state
 is the live verification; script/unit installation alone is not. The public API can be cached.
@@ -95,6 +72,5 @@ is the live verification; script/unit installation alone is not. The public API 
 sequence; transport failure means inspect DNS/TLS/egress. After 180 seconds without a heartbeat
 a component is in outage, without inferring dependencies between components.
 
-`pnpm check` includes offline shell tests with fake curl/K3S and temporary provisioning databases.
-It does not register production tokens,
-contact the cluster or demonstrate successful delivery from actual hardware.
+`pnpm check` includes offline shell tests with fake curl and temporary provisioning databases.
+It does not register production tokens or demonstrate successful delivery from actual hardware.

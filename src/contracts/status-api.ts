@@ -1,6 +1,6 @@
 export type ComponentStatus = "operational" | "degraded" | "outage";
 
-export type ComponentGroupKey = "devices" | "k3s";
+export type ComponentGroupKey = "devices";
 
 export interface HeartbeatObservationRequest {
   component: string;

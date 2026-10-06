@@ -25,7 +25,7 @@ export async function configureComponents(
     const value = object(item, ["slug", "group", "name", "description", "staleAfterSeconds", "sortOrder", "enabled"]);
     identifier(value.slug);
     displayName(value.name);
-    if (!["devices", "k3s"].includes(value.group as string)
+    if (value.group !== "devices"
       || (value.description !== undefined && value.description !== null
         && (typeof value.description !== "string" || value.description.length > 500))
       || (value.staleAfterSeconds !== undefined

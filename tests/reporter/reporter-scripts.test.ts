@@ -41,8 +41,7 @@ beforeEach(() => {
     ...process.env, PATH: `${join(directory, "bin")}:${process.env.PATH}`,
     TEST_DIR: directory, STATUS_REPORTER_TOKEN: token,
     STATUS_REPORTER_URL: "https://status.example.test/api/v1/heartbeat",
-    STATUS_COMPONENT: "ubuntu-main-server", STATUS_K3S_BIN: join(directory, "bin/k3s"),
-    STATUS_K3S_KUBECONFIG: "/test/explicit-kubeconfig",
+    STATUS_COMPONENT: "ubuntu-main-server",
   };
   executable("curl", `
 const fs = require("node:fs");
@@ -52,17 +51,6 @@ fs.writeFileSync(process.env.TEST_DIR + "/request.json", JSON.stringify({
 }));
 process.stdout.write(process.env.HTTP_CODE || "202");
 process.exit(Number(process.env.CURL_EXIT || "0"));
-`);
-  executable("k3s", `
-const fs = require("node:fs");
-const args = process.argv.slice(2);
-fs.appendFileSync(process.env.TEST_DIR + "/k3s.jsonl", JSON.stringify(args) + "\\n");
-if (process.env.ALL_K3S_FAIL === "yes") process.exit(1);
-if (args.includes("--raw=/readyz")) process.exit(Number(process.env.API_EXIT || "0"));
-if (args.includes("nodes")) process.stdout.write(process.env.NODES ?? "node-a|True\\nnode-b|True\\n");
-else if (args.includes("coredns")) process.stdout.write(process.env.DNS_COUNTS ?? "1|1");
-else if (args.includes("traefik")) process.stdout.write(process.env.INGRESS_COUNTS ?? "1|1");
-else process.exit(1);
 `);
 });
 
@@ -120,39 +108,15 @@ describe("portable reporter scripts", () => {
     expect(request().payload.observations[0].component).toBe("openwrt");
   });
 
-  it("uses four bounded K3S queries with an explicit kubeconfig", () => {
-    expect(run("k3s").status).toBe(0);
-    expect(request().payload.observations.map((item) => item.status)).toEqual(Array(4).fill("operational"));
-    const calls: string[][] = readFileSync(join(directory, "k3s.jsonl"), "utf8").trim().split("\n").map((line) => JSON.parse(line));
-    expect(calls).toHaveLength(4);
-    for (const args of calls) {
-      expect(args).toContain("--request-timeout=5s");
-      expect(args).toContain("/test/explicit-kubeconfig");
-    }
-  });
-
-  it("observes other components independently when API readiness fails", () => {
-    expect(run("k3s", { API_EXIT: "1" }).status).toBe(0);
-    expect(request().payload.observations.map((item) => item.status)).toEqual([
-      "outage", "operational", "operational", "operational",
-    ]);
-  });
-
-  it("handles missing node conditions and partially ready deployments", () => {
-    expect(run("k3s", { NODES: "node-a|True\nnode-b|\n", DNS_COUNTS: "|2", INGRESS_COUNTS: "1|2" }).status).toBe(0);
-    const observations = request().payload.observations;
-    expect(observations[1].status).toBe("degraded");
-    expect(observations[2]).toMatchObject({ status: "outage", message: "0/2 replicas ready" });
-    expect(observations[3].status).toBe("degraded");
-  });
-
-  it("still sends an outage observation when the cluster cannot be reached", () => {
-    expect(run("k3s", { ALL_K3S_FAIL: "yes" }).status).toBe(0);
-    expect(request().payload.observations.map((item) => item.status)).toEqual(Array(4).fill("outage"));
+  it("rejects the retired cluster reporter kind before invoking curl", () => {
+    const result = spawnSync("/bin/sh", [join(reporter, "bin/status-run-reporter"), "/unused/config.env", "k3s"],
+      { env: environment, encoding: "utf8", timeout: 10_000 });
+    expect(result.status).toBe(2);
+    expect(() => request()).toThrow();
   });
 
   it("produces payloads accepted by the status heartbeat use case", async () => {
-    expect(run("k3s").status).toBe(0);
+    expect(run().status).toBe(0);
     const payload = request().payload;
     let persisted: PersistHeartbeat | undefined;
     const result = await recordHeartbeat(
@@ -162,7 +126,7 @@ describe("portable reporter scripts", () => {
           allowedComponentSlugs: new Set(payload.observations.map((item) => item.component)) }) },
         repository: {
           findComponentStatuses: async () => payload.observations.map((item, index) => ({
-            component: { id: index + 1, slug: item.component, group: "k3s", name: item.component,
+            component: { id: index + 1, slug: item.component, group: "devices", name: item.component,
               description: null, staleAfterSeconds: 180, sortOrder: index, monitoringStartedAt: 1 },
             state: null, openIncidentId: null,
           })),
@@ -171,17 +135,17 @@ describe("portable reporter scripts", () => {
         },
       },
     );
-    expect(result.acceptedComponents).toBe(4);
-    expect(persisted?.mutations).toHaveLength(4);
+    expect(result.acceptedComponents).toBe(1);
+    expect(persisted?.mutations).toHaveLength(1);
   });
 
-  it.each(["host", "k3s"])("bounds the %s systemd service and permits DNS sockets", (kind) => {
-    const unit = readFileSync(join(reporter, `systemd/status-${kind}-reporter.service`), "utf8");
+  it("bounds the host systemd service and permits DNS sockets", () => {
+    const unit = readFileSync(join(reporter, "systemd/status-host-reporter.service"), "utf8");
     expect(unit).toContain("TimeoutStartSec=45s");
     expect(unit).toContain("RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6");
   });
 
-  it.each(["status-common.sh", "status-run-reporter", "status-host-reporter", "status-k3s-reporter"])("parses %s as POSIX shell", (name) => {
+  it.each(["status-common.sh", "status-run-reporter", "status-host-reporter"])("parses %s as POSIX shell", (name) => {
     const result = spawnSync("/bin/sh", ["-n", join(reporter, "bin", name)], { encoding: "utf8" });
     expect(result.status, result.stderr).toBe(0);
   });
