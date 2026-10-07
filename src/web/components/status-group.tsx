@@ -25,6 +25,7 @@ export function StatusGroup({ group }: { group: PublicGroupResponse }) {
 }
 
 function statusLabel(status: PublicGroupResponse["status"]): string {
+  if (status === "unknown") return "Awaiting heartbeat";
   if (status === "operational") return "Operational";
   if (status === "degraded") return "Degraded";
   return "Outage";

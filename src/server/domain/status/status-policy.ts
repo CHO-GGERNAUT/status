@@ -1,4 +1,4 @@
-import type { ComponentStatus } from "../../../contracts/status-api";
+import type { ComponentStatus, PublicComponentStatus } from "../../../contracts/status-api";
 import type {
   ComponentState,
   IncidentMutation,
@@ -6,19 +6,20 @@ import type {
   StoredComponentStatus,
 } from "./types";
 
-const STATUS_SEVERITY: Record<ComponentStatus, number> = {
+const STATUS_SEVERITY: Record<PublicComponentStatus, number> = {
   operational: 0,
-  degraded: 1,
-  outage: 2,
+  unknown: 1,
+  degraded: 2,
+  outage: 3,
 };
 
 export function deriveComponentStatus(
   component: StatusComponent,
   state: ComponentState | null,
   now: number,
-): ComponentStatus {
+): PublicComponentStatus {
   if (state === null) {
-    return "outage";
+    return "unknown";
   }
 
   if (state.reportedStatus === "outage") {
@@ -47,8 +48,8 @@ export function deriveOutageStart(
   return state.receivedAt + component.staleAfterSeconds;
 }
 
-export function worstStatus(statuses: Iterable<ComponentStatus>): ComponentStatus {
-  let result: ComponentStatus = "operational";
+export function worstStatus(statuses: Iterable<PublicComponentStatus>): PublicComponentStatus {
+  let result: PublicComponentStatus = "operational";
 
   for (const status of statuses) {
     if (STATUS_SEVERITY[status] > STATUS_SEVERITY[result]) {
@@ -66,6 +67,12 @@ export function planIncidentMutation(
   now: number,
 ): IncidentMutation {
   const { component, state, openIncidentId } = stored;
+
+  if (state === null) {
+    return nextStatus === "outage"
+      ? { kind: "open", startedAt: now, cause: "reported", summary: nextMessage }
+      : { kind: "none" };
+  }
 
   if (openIncidentId !== null) {
     return nextStatus === "outage"

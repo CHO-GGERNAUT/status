@@ -1,4 +1,5 @@
 export type ComponentStatus = "operational" | "degraded" | "outage";
+export type PublicComponentStatus = ComponentStatus | "unknown";
 
 export type ComponentGroupKey = "devices";
 
@@ -32,7 +33,7 @@ export interface PublicComponentResponse {
   slug: string;
   name: string;
   description: string | null;
-  status: ComponentStatus;
+  status: PublicComponentStatus;
   message: string | null;
   lastReceivedAt: string | null;
   availability: {
@@ -46,7 +47,7 @@ export interface PublicComponentResponse {
 export interface PublicGroupResponse {
   key: ComponentGroupKey;
   name: string;
-  status: ComponentStatus;
+  status: PublicComponentStatus;
   components: PublicComponentResponse[];
 }
 
@@ -61,7 +62,7 @@ export interface PublicIncidentResponse {
 }
 
 export interface PublicStatusResponse {
-  status: ComponentStatus;
+  status: PublicComponentStatus;
   generatedAt: string;
   groups: PublicGroupResponse[];
   incidents: PublicIncidentResponse[];

@@ -105,6 +105,12 @@ export class D1StatusRepository implements StatusRepository {
     ];
 
     for (const mutation of heartbeat.mutations) {
+      statements.push(
+        this.#database.prepare(`UPDATE components SET monitoring_started_at = ?
+          WHERE id = ? AND NOT EXISTS (
+            SELECT 1 FROM current_states WHERE component_id = components.id
+          )`).bind(mutation.receivedAt, mutation.component.id),
+      );
       const incident = mutation.incident;
       if (incident.kind === "open") {
         statements.push(

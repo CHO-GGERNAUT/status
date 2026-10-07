@@ -4,6 +4,11 @@ import { IncidentList } from "./components/incident-list";
 import { StatusGroup } from "./components/status-group";
 
 const STATUS_COPY = {
+  unknown: {
+    eyebrow: "Awaiting first heartbeat",
+    title: "Monitoring is getting started.",
+    description: "Some devices have not sent their first heartbeat yet.",
+  },
   operational: {
     eyebrow: "All systems operational",
     title: "Everything is running smoothly.",

@@ -17,12 +17,13 @@ export function UptimeBars({
           <span
             key={day.date}
             className={`uptime__bar uptime__bar--${barStatus(day)}`}
-            title={`${day.date}: ${day.percentage}%`}
+            title={`${day.date}: ${day.monitoredSeconds === 0 ? "No data" : `${day.percentage}%`}`}
           />
         ))}
       </div>
       <div className="uptime__legend" aria-hidden="true">
         <span>90 days ago</span>
+        <span>Gray: no data</span>
         <span>{latest?.date ?? "Today"}</span>
       </div>
     </div>

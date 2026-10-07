@@ -36,7 +36,16 @@ export async function getPublicStatus(
 ): Promise<PublicStatusResponse> {
   const incidentSince = query.now - QUARTER_SECONDS;
   const data = await repository.getPublicStatusData(incidentSince);
-  const incidentsByComponent = groupIncidents(data.incidents);
+  const storedById = new Map(data.components.map((stored) => [stored.component.id, stored]));
+  const monitoredIncidents = data.incidents.flatMap((incident) => {
+    const stored = storedById.get(incident.componentId);
+    if (stored === undefined || stored.state === null ||
+      (incident.endedAt !== null && incident.endedAt <= stored.component.monitoringStartedAt)) {
+      return [];
+    }
+    return [{ ...incident, startedAt: Math.max(incident.startedAt, stored.component.monitoringStartedAt) }];
+  });
+  const incidentsByComponent = groupIncidents(monitoredIncidents);
   const groupsByKey = new Map<ComponentGroupKey, PublicGroupResponse>();
   const publicIncidents: PublicIncidentResponse[] = [];
 
@@ -73,7 +82,7 @@ export async function getPublicStatus(
   }
 
   const componentById = new Map(data.components.map((stored) => [stored.component.id, stored.component]));
-  for (const incident of data.incidents) {
+  for (const incident of monitoredIncidents) {
     const component = componentById.get(incident.componentId);
     if (component === undefined) {
       continue;
@@ -137,7 +146,10 @@ function toComponentResponse(
   virtualOutageStart: number | null,
   now: number,
 ): PublicComponentResponse {
-  const { component, state } = stored;
+  const { state } = stored;
+  const component = state === null
+    ? { ...stored.component, monitoringStartedAt: now }
+    : stored.component;
 
   return {
     slug: component.slug,

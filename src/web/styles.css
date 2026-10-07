@@ -292,6 +292,16 @@ main {
   box-shadow: 0 0 0.65rem rgba(57, 217, 138, 0.45);
 }
 
+.hero--unknown .hero__signal span {
+  background: var(--muted);
+  box-shadow: none;
+}
+
+.hero--unknown .eyebrow,
+.status-text--unknown {
+  color: var(--muted);
+}
+
 .status-dot--degraded {
   background: var(--amber);
   box-shadow: 0 0 0.65rem rgba(245, 185, 76, 0.42);

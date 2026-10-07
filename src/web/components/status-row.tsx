@@ -15,8 +15,10 @@ export function ComponentStatusRow({ component }: { component: PublicComponentRe
           )}
         </div>
         <div className="component-row__metric">
-          <strong>{formatPercentage(component.availability.month.percentage)}</strong>
-          <span>30 day uptime</span>
+          <strong>{component.availability.month.monitoredSeconds === 0
+            ? "—" : formatPercentage(component.availability.month.percentage)}</strong>
+          <span>{component.availability.month.monitoredSeconds < 30 * 86_400
+            ? "Observed uptime" : "30 day uptime"}</span>
         </div>
       </div>
 
@@ -53,6 +55,7 @@ function formatRelative(value: string): string {
 }
 
 function statusLabel(status: PublicComponentResponse["status"]): string {
+  if (status === "unknown") return "Awaiting heartbeat";
   if (status === "operational") return "Operational";
   if (status === "degraded") return "Degraded";
   return "Outage";

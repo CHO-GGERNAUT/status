@@ -188,12 +188,14 @@ describe("secret-protected reporter administration", () => {
     if (change === "sequence") await heartbeat(token);
     const state = fixture.sqlite.prepare("SELECT * FROM current_states").all();
     const history = fixture.sqlite.prepare("SELECT * FROM incidents").all();
+    const components = fixture.sqlite.prepare("SELECT * FROM components").all();
     await expect(recordHeartbeat({ bearerToken: token, sequence: 1, receivedAt: Math.floor(Date.now() / 1000),
       observations: [{ component: "nas", status: "outage" }] }, {
       authenticator: { authenticate: async () => identity }, repository: new D1StatusRepository(fixture.database),
     })).rejects.toMatchObject({ code: change === "sequence" ? "conflict" : "unauthorized" });
     expect(fixture.sqlite.prepare("SELECT * FROM current_states").all()).toEqual(state);
     expect(fixture.sqlite.prepare("SELECT * FROM incidents").all()).toEqual(history);
+    expect(fixture.sqlite.prepare("SELECT * FROM components").all()).toEqual(components);
   });
 
   it.each([
