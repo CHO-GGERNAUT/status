@@ -2,6 +2,7 @@ import type { ComponentGroupKey, ComponentStatus } from "../../../contracts/stat
 import { StatusApplicationError } from "../../application/status/application-error";
 import type { StatusRepository } from "../../domain/status/status-repository";
 import type {
+  AvailabilityInitialization,
   ComponentState,
   PersistHeartbeat,
   PublicStatusData,
@@ -35,6 +36,12 @@ interface IncidentRow {
   ended_at: number | null;
   cause: "reported" | "stale";
   summary: string | null;
+}
+
+interface InitializationRow {
+  component_id: number;
+  started_at: number;
+  ended_at: number;
 }
 
 const COMPONENT_STATUS_SELECT = `
@@ -200,7 +207,7 @@ export class D1StatusRepository implements StatusRepository {
   }
 
   async getPublicStatusData(incidentSince: number): Promise<PublicStatusData> {
-    const [componentResult, incidentResult] = await Promise.all([
+    const [componentResult, incidentResult, initializationResult] = await Promise.all([
       this.#database
         .prepare(
           `${COMPONENT_STATUS_SELECT}
@@ -217,11 +224,17 @@ export class D1StatusRepository implements StatusRepository {
         )
         .bind(incidentSince)
         .all<IncidentRow>(),
+      this.#database
+        .prepare(`SELECT component_id, started_at, ended_at
+          FROM availability_initializations WHERE ended_at >= ?`)
+        .bind(incidentSince)
+        .all<InitializationRow>(),
     ]);
 
     return {
       components: componentResult.results.map(toStoredComponentStatus),
       incidents: incidentResult.results.map(toIncident),
+      initializations: initializationResult.results.map(toInitialization),
     };
   }
 }
@@ -265,5 +278,13 @@ function toIncident(row: IncidentRow): StatusIncident {
     endedAt: row.ended_at,
     cause: row.cause,
     summary: row.summary,
+  };
+}
+
+function toInitialization(row: InitializationRow): AvailabilityInitialization {
+  return {
+    componentId: row.component_id,
+    startedAt: row.started_at,
+    endedAt: row.ended_at,
   };
 }

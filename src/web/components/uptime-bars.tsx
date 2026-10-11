@@ -7,7 +7,8 @@ export function UptimeBars({
   hours: HourlyAvailabilityResponse[];
   componentName: string;
 }) {
-  const label = `${componentName} availability over the last ${hours.length} hours`;
+  const hasInitializedHistory = hours.some((hour) => hour.initializedSeconds > 0);
+  const label = `${componentName} availability over the last ${hours.length} hours${hasInitializedHistory ? "; includes history initialized as operational before monitoring" : ""}`;
 
   return (
     <div className="uptime" role="img" aria-label={label}>
@@ -16,13 +17,13 @@ export function UptimeBars({
           <span
             key={hour.startAt}
             className={`uptime__bar uptime__bar--${barStatus(hour)}`}
-            title={`${new Date(hour.startAt).toLocaleString()}: ${hour.monitoredSeconds === 0 ? "No data" : `${hour.percentage}%`}`}
+            title={`${new Date(hour.startAt).toLocaleString()}: ${hourLabel(hour)}`}
           />
         ))}
       </div>
       <div className="uptime__legend" aria-hidden="true">
         <span>7 days ago</span>
-        <span>Gray: no data</span>
+        <span>{hasInitializedHistory ? "Includes initialized history" : "Gray: no data"}</span>
         <span>Now</span>
       </div>
     </div>
@@ -30,8 +31,15 @@ export function UptimeBars({
 }
 
 function barStatus(hour: HourlyAvailabilityResponse): "empty" | "up" | "partial" | "down" {
-  if (hour.monitoredSeconds === 0) return "empty";
+  if (hour.monitoredSeconds === 0) return hour.initializedSeconds > 0 ? "up" : "empty";
   if (hour.outageSeconds === 0) return "up";
-  if (hour.percentage > 0) return "partial";
+  if (hour.percentage > 0 || hour.initializedSeconds > 0) return "partial";
   return "down";
+}
+
+function hourLabel(hour: HourlyAvailabilityResponse): string {
+  const observed = hour.monitoredSeconds === 0 ? "No data" : `${hour.percentage}% observed uptime`;
+  if (!(hour.initializedSeconds > 0)) return observed;
+  const initialized = "Initialized as operational before monitoring";
+  return hour.monitoredSeconds === 0 ? initialized : `${observed}; ${initialized}`;
 }

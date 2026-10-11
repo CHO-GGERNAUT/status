@@ -54,7 +54,7 @@ class FakeStatusRepository implements StatusRepository {
   }
 
   async getPublicStatusData(): Promise<PublicStatusData> {
-    return { components: [], incidents: [] };
+    return { components: [], incidents: [], initializations: [] };
   }
 }
 

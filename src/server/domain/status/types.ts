@@ -30,6 +30,12 @@ export interface StatusIncident {
   summary: string | null;
 }
 
+export interface AvailabilityInitialization {
+  componentId: number;
+  startedAt: number;
+  endedAt: number;
+}
+
 export interface StoredComponentStatus {
   component: StatusComponent;
   state: ComponentState | null;
@@ -74,4 +80,5 @@ export interface PersistHeartbeat {
 export interface PublicStatusData {
   components: StoredComponentStatus[];
   incidents: StatusIncident[];
+  initializations: AvailabilityInitialization[];
 }

@@ -14,6 +14,7 @@ import {
   worstStatus,
 } from "../../domain/status/status-policy";
 import type {
+  AvailabilityInitialization,
   StatusComponent,
   StatusIncident,
   StoredComponentStatus,
@@ -48,6 +49,9 @@ export async function getPublicStatus(
     return [{ ...incident, startedAt: Math.max(incident.startedAt, stored.component.monitoringStartedAt) }];
   });
   const incidentsByComponent = groupIncidents(monitoredIncidents);
+  const initializationsByComponent = new Map(
+    data.initializations.map((initialization) => [initialization.componentId, initialization]),
+  );
   const groupsByKey = new Map<ComponentGroupKey, PublicGroupResponse>();
   const publicIncidents: PublicIncidentResponse[] = [];
 
@@ -65,6 +69,7 @@ export async function getPublicStatus(
       componentIncidents,
       virtualOutageStart,
       query.now,
+      initializationsByComponent.get(stored.component.id) ?? null,
     );
     const group = getOrCreateGroup(groupsByKey, stored.component.group);
     group.components.push(componentResponse);
@@ -147,6 +152,7 @@ function toComponentResponse(
   incidents: readonly StatusIncident[],
   virtualOutageStart: number | null,
   now: number,
+  initialization: AvailabilityInitialization | null,
 ): PublicComponentResponse {
   const { state } = stored;
   const component = state === null
@@ -183,7 +189,7 @@ function toComponentResponse(
         virtualOutageStart,
       ),
     },
-    hourly: buildHourlyAvailability(component, incidents, virtualOutageStart, now),
+    hourly: buildHourlyAvailability(component, incidents, virtualOutageStart, now, initialization),
   };
 }
 
@@ -192,6 +198,7 @@ function buildHourlyAvailability(
   incidents: readonly StatusIncident[],
   virtualOutageStart: number | null,
   now: number,
+  initialization: AvailabilityInitialization | null,
 ): HourlyAvailabilityResponse[] {
   const currentHourStart = Math.floor(now / HOUR_SECONDS) * HOUR_SECONDS;
   const hourly: HourlyAvailabilityResponse[] = [];
@@ -209,6 +216,11 @@ function buildHourlyAvailability(
     hourly.push({
       startAt: toIso(hourStart),
       ...availability,
+      initializedSeconds: initialization === null ? 0 : Math.max(
+        0,
+        Math.min(hourEnd, initialization.endedAt, component.monitoringStartedAt) -
+          Math.max(hourStart, initialization.startedAt),
+      ),
     });
   }
 

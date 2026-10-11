@@ -5,6 +5,7 @@ import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 export function testDatabase() {
   const sqlite = new DatabaseSync(":memory:");
   sqlite.exec(readFileSync(resolve("migrations/0001_initial.sql"), "utf8"));
+  sqlite.exec(readFileSync(resolve("migrations/0004_availability_initializations.sql"), "utf8"));
 
   class Statement {
     constructor(readonly sql: string, readonly values: SQLInputValue[] = []) {}

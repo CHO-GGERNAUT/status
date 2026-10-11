@@ -1,10 +1,13 @@
 import { createHash } from "node:crypto";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getPublicStatus } from "../../src/server/application/status/get-public-status";
 import { recordHeartbeat } from "../../src/server/application/status/record-heartbeat";
 import type { ComponentStatus } from "../../src/contracts/status-api";
 import { D1ReporterAuthenticator } from "../../src/server/infrastructure/auth/d1-reporter-authenticator";
 import { D1StatusRepository } from "../../src/server/infrastructure/d1/d1-status-repository";
+import { UptimeBars } from "../../src/web/components/uptime-bars";
 import { testDatabase } from "../helpers/sqlite-d1";
 
 const token = "router." + "a".repeat(43);
@@ -65,6 +68,42 @@ describe("monitoring begins at the first accepted heartbeat", () => {
     status = await getPublicStatus({ now: firstReceipt + 120 }, repository);
     expect(status.groups[0].components[0].availability.month).toEqual({ percentage: 50, monitoredSeconds: 120, outageSeconds: 60 });
     expect(status.incidents[0].endedAt).toBe(new Date((firstReceipt + 60) * 1000).toISOString());
+  });
+
+  it("fills pre-monitoring hours as initialized without changing observed uptime", async () => {
+    await heartbeat("operational", firstReceipt);
+    fixture.sqlite.prepare(`INSERT INTO availability_initializations
+      (component_id, started_at, ended_at, created_at, reason) VALUES (1, ?, ?, ?, 'Manual initialization')`)
+      .run(firstReceipt - 7 * 86_400, firstReceipt, firstReceipt);
+
+    const status = await getPublicStatus({ now: firstReceipt + 120 }, repository);
+    const component = status.groups[0].components[0];
+    expect(component.hourly).toHaveLength(168);
+    expect(component.hourly.every((hour) => hour.monitoredSeconds > 0 || hour.initializedSeconds > 0)).toBe(true);
+    expect(component.hourly[0].initializedSeconds).toBe(3600);
+    expect(component.hourly.at(-1)).toMatchObject({ monitoredSeconds: 120, initializedSeconds: 2800 });
+    expect(component.availability.month).toEqual({ percentage: 100, monitoredSeconds: 120, outageSeconds: 0 });
+    expect(fixture.sqlite.prepare("SELECT monitoring_started_at FROM components").get()?.monitoring_started_at).toBe(firstReceipt);
+    const markup = renderToStaticMarkup(createElement(UptimeBars, { hours: component.hourly, componentName: component.name }));
+    expect(markup.match(/uptime__bar--up/g)).toHaveLength(168);
+    expect(markup).toContain("Initialized as operational before monitoring");
+  });
+
+  it("caps initialization at the real first heartbeat and preserves outages in mixed hours", async () => {
+    await heartbeat("outage", firstReceipt);
+    fixture.sqlite.prepare(`INSERT INTO availability_initializations
+      (component_id, started_at, ended_at, created_at, reason) VALUES (1, ?, ?, ?, 'Manual initialization')`)
+      .run(firstReceipt - 7 * 86_400, firstReceipt + 3600, firstReceipt);
+
+    const status = await getPublicStatus({ now: firstReceipt + 60 }, repository);
+    const component = status.groups[0].components[0];
+    expect(component.hourly.at(-1)).toMatchObject({
+      percentage: 0, monitoredSeconds: 60, outageSeconds: 60, initializedSeconds: 2800,
+    });
+    expect(component.availability.month).toEqual({ percentage: 0, monitoredSeconds: 60, outageSeconds: 60 });
+    expect(status.incidents).toHaveLength(1);
+    const markup = renderToStaticMarkup(createElement(UptimeBars, { hours: component.hourly, componentName: component.name }));
+    expect(markup.match(/uptime__bar--partial/g)).toHaveLength(1);
   });
 
   it("still counts stale periods after monitoring begins, including recovery", async () => {

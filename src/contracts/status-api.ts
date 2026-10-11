@@ -27,6 +27,7 @@ export interface AvailabilityWindowResponse {
 
 export interface HourlyAvailabilityResponse extends AvailabilityWindowResponse {
   startAt: string;
+  initializedSeconds: number;
 }
 
 export interface PublicComponentResponse {

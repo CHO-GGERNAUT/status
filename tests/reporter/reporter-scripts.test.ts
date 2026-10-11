@@ -131,7 +131,7 @@ describe("portable reporter scripts", () => {
             state: null, openIncidentId: null,
           })),
           persistHeartbeat: async (heartbeat) => { persisted = heartbeat; },
-          getPublicStatusData: async () => ({ components: [], incidents: [] }),
+          getPublicStatusData: async () => ({ components: [], incidents: [], initializations: [] }),
         },
       },
     );
