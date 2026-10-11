@@ -1,38 +1,37 @@
-import type { DailyAvailabilityResponse } from "../../contracts/status-api";
+import type { HourlyAvailabilityResponse } from "../../contracts/status-api";
 
 export function UptimeBars({
-  days,
+  hours,
   componentName,
 }: {
-  days: DailyAvailabilityResponse[];
+  hours: HourlyAvailabilityResponse[];
   componentName: string;
 }) {
-  const latest = days.at(-1);
-  const label = `${componentName} availability over the last ${days.length} days`;
+  const label = `${componentName} availability over the last ${hours.length} hours`;
 
   return (
     <div className="uptime" role="img" aria-label={label}>
       <div className="uptime__bars" aria-hidden="true">
-        {days.map((day) => (
+        {hours.map((hour) => (
           <span
-            key={day.date}
-            className={`uptime__bar uptime__bar--${barStatus(day)}`}
-            title={`${day.date}: ${day.monitoredSeconds === 0 ? "No data" : `${day.percentage}%`}`}
+            key={hour.startAt}
+            className={`uptime__bar uptime__bar--${barStatus(hour)}`}
+            title={`${new Date(hour.startAt).toLocaleString()}: ${hour.monitoredSeconds === 0 ? "No data" : `${hour.percentage}%`}`}
           />
         ))}
       </div>
       <div className="uptime__legend" aria-hidden="true">
-        <span>90 days ago</span>
+        <span>7 days ago</span>
         <span>Gray: no data</span>
-        <span>{latest?.date ?? "Today"}</span>
+        <span>Now</span>
       </div>
     </div>
   );
 }
 
-function barStatus(day: DailyAvailabilityResponse): "empty" | "up" | "partial" | "down" {
-  if (day.monitoredSeconds === 0) return "empty";
-  if (day.outageSeconds === 0) return "up";
-  if (day.percentage > 0) return "partial";
+function barStatus(hour: HourlyAvailabilityResponse): "empty" | "up" | "partial" | "down" {
+  if (hour.monitoredSeconds === 0) return "empty";
+  if (hour.outageSeconds === 0) return "up";
+  if (hour.percentage > 0) return "partial";
   return "down";
 }

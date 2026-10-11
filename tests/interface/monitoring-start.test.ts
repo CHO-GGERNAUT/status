@@ -40,7 +40,7 @@ describe("monitoring begins at the first accepted heartbeat", () => {
       status: "unknown", lastReceivedAt: null,
       availability: { month: { monitoredSeconds: 0, outageSeconds: 0 } },
     });
-    expect(status.groups[0].components[0].daily.every((day) => day.monitoredSeconds === 0)).toBe(true);
+    expect(status.groups[0].components[0].hourly.every((hour) => hour.monitoredSeconds === 0)).toBe(true);
     expect(status.incidents).toEqual([]);
   });
 
@@ -51,7 +51,7 @@ describe("monitoring begins at the first accepted heartbeat", () => {
     const status = await getPublicStatus({ now: firstReceipt + 120 }, repository);
     const component = status.groups[0].components[0];
     expect(component.availability.month).toEqual({ percentage: 100, monitoredSeconds: 120, outageSeconds: 0 });
-    expect(component.daily.slice(0, -1).every((day) => day.monitoredSeconds === 0)).toBe(true);
+    expect(component.hourly.slice(0, -1).every((hour) => hour.monitoredSeconds === 0)).toBe(true);
     expect(status.incidents).toEqual([]);
     expect(fixture.sqlite.prepare("SELECT COUNT(*) AS count FROM incidents").get()?.count).toBe(0);
   });

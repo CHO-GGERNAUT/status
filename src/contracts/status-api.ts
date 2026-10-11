@@ -25,8 +25,8 @@ export interface AvailabilityWindowResponse {
   outageSeconds: number;
 }
 
-export interface DailyAvailabilityResponse extends AvailabilityWindowResponse {
-  date: string;
+export interface HourlyAvailabilityResponse extends AvailabilityWindowResponse {
+  startAt: string;
 }
 
 export interface PublicComponentResponse {
@@ -41,7 +41,7 @@ export interface PublicComponentResponse {
     month: AvailabilityWindowResponse;
     quarter: AvailabilityWindowResponse;
   };
-  daily: DailyAvailabilityResponse[];
+  hourly: HourlyAvailabilityResponse[];
 }
 
 export interface PublicGroupResponse {

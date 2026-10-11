@@ -1,6 +1,6 @@
 import type {
   ComponentGroupKey,
-  DailyAvailabilityResponse,
+  HourlyAvailabilityResponse,
   PublicComponentResponse,
   PublicGroupResponse,
   PublicIncidentResponse,
@@ -20,6 +20,8 @@ import type {
 } from "../../domain/status/types";
 
 const DAY_SECONDS = 24 * 60 * 60;
+const HOUR_SECONDS = 60 * 60;
+const HISTORY_HOURS = 7 * 24;
 const MONTH_SECONDS = 30 * DAY_SECONDS;
 const QUARTER_SECONDS = 90 * DAY_SECONDS;
 const GROUP_NAMES: Record<ComponentGroupKey, string> = {
@@ -181,36 +183,36 @@ function toComponentResponse(
         virtualOutageStart,
       ),
     },
-    daily: buildDailyAvailability(component, incidents, virtualOutageStart, now),
+    hourly: buildHourlyAvailability(component, incidents, virtualOutageStart, now),
   };
 }
 
-function buildDailyAvailability(
+function buildHourlyAvailability(
   component: StatusComponent,
   incidents: readonly StatusIncident[],
   virtualOutageStart: number | null,
   now: number,
-): DailyAvailabilityResponse[] {
-  const currentDayStart = Math.floor(now / DAY_SECONDS) * DAY_SECONDS;
-  const daily: DailyAvailabilityResponse[] = [];
+): HourlyAvailabilityResponse[] {
+  const currentHourStart = Math.floor(now / HOUR_SECONDS) * HOUR_SECONDS;
+  const hourly: HourlyAvailabilityResponse[] = [];
 
-  for (let offset = 89; offset >= 0; offset -= 1) {
-    const dayStart = currentDayStart - offset * DAY_SECONDS;
-    const dayEnd = Math.min(dayStart + DAY_SECONDS, now);
+  for (let offset = HISTORY_HOURS - 1; offset >= 0; offset -= 1) {
+    const hourStart = currentHourStart - offset * HOUR_SECONDS;
+    const hourEnd = Math.min(hourStart + HOUR_SECONDS, now);
     const availability = calculateAvailability(
       component.monitoringStartedAt,
       incidents,
-      dayStart,
-      dayEnd,
+      hourStart,
+      hourEnd,
       virtualOutageStart,
     );
-    daily.push({
-      date: new Date(dayStart * 1000).toISOString().slice(0, 10),
+    hourly.push({
+      startAt: toIso(hourStart),
       ...availability,
     });
   }
 
-  return daily;
+  return hourly;
 }
 
 function toIncidentResponse(

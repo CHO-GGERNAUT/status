@@ -387,14 +387,14 @@ main {
 
 .uptime__bars {
   display: grid;
-  grid-template-columns: repeat(90, minmax(2px, 1fr));
-  gap: 2px;
+  grid-template-columns: repeat(168, minmax(0, 1fr));
+  gap: 1px;
   height: 2.2rem;
 }
 
 .uptime__bar {
-  min-width: 2px;
-  border-radius: 2px;
+  min-width: 0;
+  border-radius: 1px;
   background: rgba(255, 255, 255, 0.08);
 }
 
@@ -602,7 +602,7 @@ footer {
   }
 
   .uptime__bars {
-    gap: 1px;
+    gap: 0;
   }
 }
 

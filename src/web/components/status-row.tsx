@@ -22,7 +22,7 @@ export function ComponentStatusRow({ component }: { component: PublicComponentRe
         </div>
       </div>
 
-      <UptimeBars days={component.daily} componentName={component.name} />
+      <UptimeBars hours={component.hourly} componentName={component.name} />
 
       <div className="component-row__footer">
         <span className={`status-text status-text--${component.status}`}>
